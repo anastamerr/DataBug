@@ -11,6 +11,8 @@ from sklearn.preprocessing import LabelEncoder
 
 
 class BugClassifier:
+    MODEL_VERSION = 2
+
     def __init__(self):
         self.encoder = SentenceTransformer("all-MiniLM-L6-v2")
 
@@ -28,13 +30,19 @@ class BugClassifier:
         try:
             with open("models/bug_classifier.pkl", "rb") as f:
                 models = pickle.load(f)
+
+            if not isinstance(models, dict):
+                raise ValueError("Invalid model file format")
+            if models.get("version") != self.MODEL_VERSION:
+                raise ValueError("Model version mismatch")
+
                 self.type_classifier = models["type"]
                 self.component_classifier = models["component"]
                 self.severity_classifier = models["severity"]
                 self.type_encoder = models["type_encoder"]
                 self.component_encoder = models["component_encoder"]
                 self.severity_encoder = models["severity_encoder"]
-        except FileNotFoundError:
+        except (FileNotFoundError, KeyError, ValueError, pickle.UnpicklingError):
             self._train_on_sample_data()
 
     def _train_on_sample_data(self) -> None:
@@ -43,50 +51,56 @@ class BugClassifier:
                 "Dashboard shows $0 revenue",
                 "Revenue dashboard displaying zero values",
                 "bug",
-                "analytics",
+                "analytics_dashboard",
                 "critical",
             ),
             (
                 "API returns empty response",
                 "User API returning null for profile",
                 "bug",
-                "backend",
+                "user_api",
                 "high",
             ),
             (
                 "App crashes on login",
                 "Mobile app crash when user tries to login",
                 "bug",
-                "mobile",
+                "mobile_app",
                 "critical",
             ),
-            ("Add dark mode", "Please add dark mode support", "feature", "frontend", "low"),
+            (
+                "Add dark mode",
+                "Please add dark mode support to the dashboard UI",
+                "feature",
+                "analytics_dashboard",
+                "low",
+            ),
             (
                 "Slow page load",
                 "Dashboard takes 10 seconds to load",
                 "bug",
-                "frontend",
+                "analytics_dashboard",
                 "medium",
             ),
             (
                 "Database connection timeout",
                 "Getting connection timeouts to primary DB",
                 "bug",
-                "backend",
+                "infrastructure",
                 "critical",
             ),
             (
                 "Recommendation engine wrong results",
                 "ML model predicting incorrect items",
                 "bug",
-                "ml",
+                "recommendation_model",
                 "high",
             ),
             (
                 "How to reset password",
                 "Can't find password reset option",
                 "question",
-                "frontend",
+                "user_api",
                 "low",
             ),
         ]
@@ -128,6 +142,7 @@ class BugClassifier:
         with open("models/bug_classifier.pkl", "wb") as f:
             pickle.dump(
                 {
+                    "version": self.MODEL_VERSION,
                     "type": self.type_classifier,
                     "component": self.component_classifier,
                     "severity": self.severity_classifier,
@@ -168,4 +183,3 @@ class BugClassifier:
             "severity_confidence": float(max(severity_probs)),
             "overall_confidence": float(confidence),
         }
-

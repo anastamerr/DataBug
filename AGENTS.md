@@ -9,14 +9,18 @@
 - [x] Data monitoring primitives: Great Expectations + anomaly detection wiring
 - [x] Correlation + explanations + predictions scaffolding in API/services
 - [x] GitHub ingestion: webhook endpoint + upsert/triage + optional backfill script
+- [x] GitHub issue comments: ingest `issue_comment` webhooks into bug labels
+- [x] Duplicate detection: Pinecone embeddings + duplicate scoring (manual + GitHub ingestion)
+- [x] Correlation-ready component taxonomy (classifier emits lineage-aligned components)
+- [x] Auto-predictions on incident creation (API + demo)
 - [x] Supabase-ready compose: no local Postgres; backend uses `backend/.env` (gitignored)
 - [x] Backend tests in place (pytest)
 
 ### Pending / Next (ops + verification)
-- [ ] Ensure Supabase `DATABASE_URL` uses an IPv4-reachable host (prefer Supabase Session Pooler) + `sslmode=require`
-- [ ] Run DB migrations on Supabase: `cd backend && python -m alembic upgrade head`
-- [ ] Run initial GitHub backfill: `cd backend && python -m src.integrations.github_backfill`
-- [ ] Configure ngrok authtoken + expose port `8000`, then set GitHub webhook URL to `https://<ngrok-host>/api/webhooks/github`
+- [x] Ensure Supabase `DATABASE_URL` uses an IPv4-reachable host (prefer Supabase Session Pooler) + `sslmode=require`
+- [x] Run DB migrations on Supabase: `cd backend && python -m alembic upgrade head`
+- [x] Run initial GitHub backfill: `cd backend && python -m src.integrations.github_backfill`
+- [x] Configure ngrok authtoken + expose port `8000`, then set GitHub webhook URL to `https://<ngrok-host>/api/webhooks/github`
 - [ ] Pull Ollama model locally (e.g. Llama 3) if using real chat/explanations
 
 ## Project Overview

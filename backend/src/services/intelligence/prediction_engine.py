@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 from sklearn.ensemble import GradientBoostingRegressor
+from sqlalchemy import text
 
 from ...models import DataIncident
 from ..pipeline_monitor.lineage_graph import DataLineageGraph
@@ -19,7 +20,8 @@ class PredictionEngine:
 
     def _train_model(self) -> None:
         patterns = self.db.execute(
-            """
+            text(
+                """
             SELECT
                 i.incident_type,
                 i.severity,
@@ -29,7 +31,8 @@ class PredictionEngine:
             LEFT JOIN bug_reports b ON b.correlated_incident_id = i.id
             WHERE i.timestamp > :start
             GROUP BY i.id, i.incident_type, i.severity, i.anomaly_score
-            """,
+            """
+            ),
             {"start": datetime.utcnow() - timedelta(days=90)},
         ).fetchall()
 
@@ -183,4 +186,3 @@ class PredictionEngine:
                 f"Monitor {', '.join(downstream)} closely."
             )
         return "LOW: Expect minimal bug reports. Standard monitoring sufficient."
-

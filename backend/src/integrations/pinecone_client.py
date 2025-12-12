@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-import os
 from typing import Any, Dict, List, Optional
 
 from pinecone import Pinecone, ServerlessSpec
 from sentence_transformers import SentenceTransformer
 
+from ..config import get_settings
+
 
 class PineconeService:
     def __init__(self):
-        api_key = os.getenv("PINECONE_API_KEY")
+        settings = get_settings()
+        api_key = settings.pinecone_api_key
         if not api_key:
             raise RuntimeError("PINECONE_API_KEY is not set")
 

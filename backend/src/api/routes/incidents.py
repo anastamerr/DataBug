@@ -7,10 +7,12 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 from sqlalchemy.orm import Session
 
 from ...api.deps import get_db
-from ...models import BugReport, DataIncident
+from ...models import BugPrediction, BugReport, DataIncident
 from ...schemas.bug import BugReportRead
 from ...schemas.incident import DataIncidentCreate, DataIncidentRead
+from ...schemas.prediction import BugPredictionRead
 from ...realtime import sio
+from ...services.intelligence.prediction_engine import PredictionEngine
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 
@@ -34,6 +36,30 @@ def create_incident(
         DataIncidentRead.model_validate(incident).model_dump(mode="json")
     )
     background_tasks.add_task(sio.emit, "incident.created", event_payload)
+
+    try:
+        engine = PredictionEngine(db)
+        result = engine.predict_bugs(incident)
+        prediction = BugPrediction(
+            incident_id=incident.id,
+            predicted_bug_count=result["predicted_bug_count"],
+            predicted_components=result.get("predicted_components"),
+            confidence=result.get("confidence"),
+            prediction_window_hours=result.get("prediction_window_hours", 6),
+            actual_bug_count=None,
+            was_accurate=None,
+        )
+        db.add(prediction)
+        db.commit()
+        db.refresh(prediction)
+
+        prediction_event = BugPredictionRead.model_validate(prediction).model_dump(
+            mode="json"
+        )
+        background_tasks.add_task(sio.emit, "prediction.created", prediction_event)
+    except Exception:
+        pass
+
     return incident
 
 

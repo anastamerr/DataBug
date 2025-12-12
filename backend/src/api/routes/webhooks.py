@@ -87,4 +87,37 @@ async def github_webhook(
 
         return {"ok": True}
 
+    if event == "issue_comment":
+        action = payload.get("action")
+        issue = payload.get("issue") or {}
+        comment = payload.get("comment") or {}
+        if not isinstance(issue, dict) or not isinstance(comment, dict):
+            return {"ok": True}
+        if is_pull_request(issue):
+            return {"ok": True, "ignored": True, "reason": "pull_request"}
+        if not repo_full_name:
+            return {"ok": True, "ignored": True, "reason": "missing_repo"}
+
+        ingestor = get_ingestor()
+        bug, created, corr, _incident = ingestor.upsert_issue_comment(
+            db,
+            repo_full_name=repo_full_name,
+            issue=issue,
+            comment=comment,
+            action=action,
+            auto_correlate=True,
+        )
+
+        bug_event = BugReportRead.model_validate(bug).model_dump(mode="json")
+        background_tasks.add_task(
+            sio.emit,
+            "bug.created" if created else "bug.updated",
+            bug_event,
+        )
+        if corr is not None:
+            corr_event = CorrelationRead.model_validate(corr).model_dump(mode="json")
+            background_tasks.add_task(sio.emit, "correlation.created", corr_event)
+
+        return {"ok": True}
+
     return {"ok": True, "ignored": True, "event": event}

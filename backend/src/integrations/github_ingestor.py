@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import uuid
+from functools import lru_cache
 from typing import Any, Dict, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
 from ..models import BugIncidentCorrelation, BugReport, DataIncident
-from ..services.bug_triage import AutoRouter, BugClassifier
+from ..services.bug_triage import AutoRouter, BugClassifier, DuplicateDetector
 from ..services.correlation.temporal_matcher import TemporalMatcher
 from .github_client import parse_github_timestamp
 
@@ -50,15 +52,31 @@ def issue_to_bug_fields(repo_full_name: str, issue: Dict[str, Any]) -> Dict[str,
     }
 
 
+@lru_cache
+def _get_pinecone_service():
+    from .pinecone_client import PineconeService
+
+    return PineconeService()
+
+
+def _get_duplicate_detector() -> Optional[DuplicateDetector]:
+    try:
+        return DuplicateDetector(_get_pinecone_service())
+    except Exception:
+        return None
+
+
 class GitHubIngestor:
     def __init__(
         self,
         *,
         classifier: Optional[BugClassifier] = None,
         auto_router: Optional[AutoRouter] = None,
+        duplicate_detector: Optional[DuplicateDetector] = None,
     ):
         self.classifier = classifier or BugClassifier()
         self.auto_router = auto_router or AutoRouter()
+        self.duplicate_detector = duplicate_detector
 
     def upsert_issue(
         self,
@@ -133,6 +151,40 @@ class GitHubIngestor:
         db.commit()
         db.refresh(bug)
 
+        duplicate_detector = self.duplicate_detector
+        if duplicate_detector is None:
+            duplicate_detector = _get_duplicate_detector()
+            self.duplicate_detector = duplicate_detector
+
+        if duplicate_detector is not None:
+            try:
+                duplicates = duplicate_detector.find_duplicates(
+                    bug_id=str(bug.id),
+                    title=bug.title,
+                    description=bug.description or "",
+                )
+
+                if duplicates:
+                    bug.is_duplicate = True
+                    bug.duplicate_score = duplicates[0]["similarity_score"]
+                    try:
+                        bug.duplicate_of_id = uuid.UUID(duplicates[0]["bug_id"])
+                    except ValueError:
+                        bug.duplicate_of_id = None
+                else:
+                    bug.is_duplicate = False
+                    bug.duplicate_score = None
+                    bug.duplicate_of_id = None
+
+                duplicate_detector.register_bug(bug)
+                bug.embedding_id = str(bug.id)
+
+                db.add(bug)
+                db.commit()
+                db.refresh(bug)
+            except Exception:
+                pass
+
         corr: BugIncidentCorrelation | None = None
         incident: DataIncident | None = None
 
@@ -156,11 +208,17 @@ class GitHubIngestor:
                     )
                     .first()
                 )
+                explanation = (
+                    f"Likely root cause: {incident.incident_type} in "
+                    f"{incident.table_name} impacting {bug.classified_component}."
+                )
                 if existing:
                     existing.correlation_score = score
                     existing.temporal_score = matcher._temporal_score(bug, incident)
                     existing.component_score = matcher._component_score(bug, incident)
                     existing.keyword_score = matcher._keyword_score(bug, incident)
+                    if not existing.explanation:
+                        existing.explanation = explanation
                     corr = existing
                 else:
                     corr = BugIncidentCorrelation(
@@ -170,12 +228,68 @@ class GitHubIngestor:
                         temporal_score=matcher._temporal_score(bug, incident),
                         component_score=matcher._component_score(bug, incident),
                         keyword_score=matcher._keyword_score(bug, incident),
-                        explanation=None,
+                        explanation=explanation,
                     )
                     db.add(corr)
 
                 db.commit()
                 if corr is not None:
                     db.refresh(corr)
+
+        return bug, created, corr, incident
+
+    def upsert_issue_comment(
+        self,
+        db: Session,
+        *,
+        repo_full_name: str,
+        issue: Dict[str, Any],
+        comment: Dict[str, Any],
+        action: Optional[str] = None,
+        auto_correlate: bool = True,
+    ) -> Tuple[BugReport, bool, Optional[BugIncidentCorrelation], Optional[DataIncident]]:
+        bug, created, corr, incident = self.upsert_issue(
+            db,
+            repo_full_name=repo_full_name,
+            issue=issue,
+            action=None,
+            auto_correlate=auto_correlate,
+        )
+
+        labels = dict(bug.labels) if isinstance(bug.labels, dict) else {}
+        comment_id = comment.get("id")
+        user = comment.get("user") or {}
+        entry = {
+            "id": comment_id,
+            "user": user.get("login"),
+            "body": comment.get("body"),
+            "url": comment.get("html_url"),
+            "created_at": comment.get("created_at"),
+            "updated_at": comment.get("updated_at"),
+        }
+
+        comments_raw = labels.get("comments")
+        comments: list[Any]
+        if isinstance(comments_raw, list):
+            comments = list(comments_raw)
+        else:
+            comments = []
+
+        comments = [
+            c
+            for c in comments
+            if not (isinstance(c, dict) and c.get("id") == comment_id)
+        ]
+
+        if (action or "").lower() != "deleted":
+            comments.insert(0, entry)
+
+        labels["comments"] = comments[:10]
+        labels["last_comment"] = labels["comments"][0] if labels["comments"] else None
+        bug.labels = labels
+
+        db.add(bug)
+        db.commit()
+        db.refresh(bug)
 
         return bug, created, corr, incident

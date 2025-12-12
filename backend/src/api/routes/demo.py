@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ...api.deps import get_db
 from ...config import get_settings
-from ...models import BugIncidentCorrelation, BugReport, DataIncident
+from ...models import BugIncidentCorrelation, BugPrediction, BugReport, DataIncident
 from ...realtime import sio
 from ...schemas.bug import BugReportRead
 from ...schemas.correlation import CorrelationRead
@@ -18,10 +18,12 @@ from ...schemas.demo import (
     DemoInjectIncidentRequest,
 )
 from ...schemas.incident import DataIncidentRead
+from ...schemas.prediction import BugPredictionRead
 from ...services.bug_triage import AutoRouter, BugClassifier
 from ...services.correlation.temporal_matcher import TemporalMatcher
 from ...services.intelligence.explanation_generator import ExplanationGenerator
 from ...services.intelligence.llm_service import OllamaService
+from ...services.intelligence.prediction_engine import PredictionEngine
 
 router = APIRouter(prefix="/demo", tags=["demo"])
 
@@ -81,6 +83,30 @@ def inject_incident(
 
     event_payload = DataIncidentRead.model_validate(incident).model_dump(mode="json")
     background_tasks.add_task(sio.emit, "incident.created", event_payload)
+
+    try:
+        engine = PredictionEngine(db)
+        result = engine.predict_bugs(incident)
+        prediction = BugPrediction(
+            incident_id=incident.id,
+            predicted_bug_count=result["predicted_bug_count"],
+            predicted_components=result.get("predicted_components"),
+            confidence=result.get("confidence"),
+            prediction_window_hours=result.get("prediction_window_hours", 6),
+            actual_bug_count=None,
+            was_accurate=None,
+        )
+        db.add(prediction)
+        db.commit()
+        db.refresh(prediction)
+
+        prediction_event = BugPredictionRead.model_validate(prediction).model_dump(
+            mode="json"
+        )
+        background_tasks.add_task(sio.emit, "prediction.created", prediction_event)
+    except Exception:
+        pass
+
     return incident
 
 
@@ -188,4 +214,3 @@ async def inject_bug(
         correlation=corr_read,
         incident=incident_read,
     )
-

@@ -27,9 +27,14 @@ def get_router() -> AutoRouter:
     return AutoRouter()
 
 
+@lru_cache
+def get_pinecone() -> PineconeService:
+    return PineconeService()
+
+
 def get_duplicate_detector() -> Optional[DuplicateDetector]:
     try:
-        pinecone = PineconeService()
+        pinecone = get_pinecone()
     except Exception:
         return None
     return DuplicateDetector(pinecone)
@@ -65,22 +70,35 @@ def create_bug(
 
     duplicate_detector = get_duplicate_detector()
     if duplicate_detector:
-        duplicates = duplicate_detector.find_duplicates(
-            bug_id=str(bug.id),
-            title=bug.title,
-            description=bug.description or "",
-        )
-        if duplicates:
-            bug.is_duplicate = True
-            bug.duplicate_score = duplicates[0]["similarity_score"]
-            try:
-                bug.duplicate_of_id = uuid.UUID(duplicates[0]["bug_id"])
-            except ValueError:
+        try:
+            duplicates = duplicate_detector.find_duplicates(
+                bug_id=str(bug.id),
+                title=bug.title,
+                description=bug.description or "",
+            )
+            if duplicates:
+                bug.is_duplicate = True
+                bug.duplicate_score = duplicates[0]["similarity_score"]
+                try:
+                    bug.duplicate_of_id = uuid.UUID(duplicates[0]["bug_id"])
+                except ValueError:
+                    bug.duplicate_of_id = None
+            else:
+                bug.is_duplicate = False
                 bug.duplicate_of_id = None
+                bug.duplicate_score = None
+
             db.add(bug)
             db.commit()
+            db.refresh(bug)
 
-        duplicate_detector.register_bug(bug)
+            duplicate_detector.register_bug(bug)
+            bug.embedding_id = str(bug.id)
+            db.add(bug)
+            db.commit()
+            db.refresh(bug)
+        except Exception:
+            pass
 
     auto_router = get_router()
     routing = auto_router.route_bug(

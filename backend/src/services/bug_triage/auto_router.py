@@ -14,6 +14,14 @@ class AutoRouter:
         "ml": "ml_team",
         "infrastructure": "platform_team",
         "data": "data_engineering",
+        # Lineage-aligned components
+        "analytics_dashboard": "analytics_team",
+        "user_api": "backend_team",
+        "mobile_app": "mobile_team",
+        "recommendation_model": "ml_team",
+        "search_service": "backend_team",
+        "inventory_api": "backend_team",
+        "personalization_service": "ml_team",
     }
 
     def route_bug(
@@ -62,4 +70,3 @@ class AutoRouter:
                 priority = "P1"
 
         return priority
-
