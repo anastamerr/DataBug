@@ -23,25 +23,42 @@ export default function Predictions() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Predictions</h1>
+      <div>
+        <h1 className="text-2xl font-extrabold tracking-tight">Predictions</h1>
+        <div className="mt-1 text-sm text-black/60">
+          Forecast bug impact from incident patterns.
+        </div>
+      </div>
 
       {isLoading && <div className="text-sm text-gray-500">Loading...</div>}
 
       <div className="space-y-2">
         {(data || []).map((p) => (
-          <div key={p.id} className="rounded-lg border bg-white p-4 shadow-sm">
-            <div className="text-sm font-semibold">
-              {p.predicted_bug_count} predicted bugs
-            </div>
-            <div className="mt-1 text-xs text-gray-600">
-              Window: {p.prediction_window_hours ?? 6}h - Confidence:{" "}
-              {p.confidence ? `${Math.round(p.confidence * 100)}%` : "n/a"}
-            </div>
-            {p.predicted_components && (
-              <div className="mt-1 text-xs">
-                Components: {p.predicted_components.join(", ")}
+          <div key={p.id} className="surface-solid p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-black/50">
+                  Prediction
+                </div>
+                <div className="mt-1 text-lg font-extrabold tracking-tight">
+                  {p.predicted_bug_count} predicted bugs
+                </div>
+                <div className="mt-1 text-sm text-black/70">
+                  Window: {p.prediction_window_hours ?? 6}h • Confidence:{" "}
+                  {p.confidence ? `${Math.round(p.confidence * 100)}%` : "n/a"}
+                </div>
               </div>
-            )}
+              <div className="badge">{p.incident_id.slice(0, 8)}</div>
+            </div>
+            {p.predicted_components?.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {p.predicted_components.slice(0, 8).map((c) => (
+                  <span key={c} className="badge">
+                    {c}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
         ))}
         {(data || []).length === 0 && !isLoading && (

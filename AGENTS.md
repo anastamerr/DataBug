@@ -1,6 +1,6 @@
 # DataBug AI - Implementation Plan
 
-## Current Status (Last updated: 2025-12-12)
+## Current Status (Last updated: 2025-12-13)
 
 ### Completed (implemented in repo)
 - [x] Monorepo structure: `backend/`, `frontend/`, `docs/`, `demo/`
@@ -20,6 +20,11 @@
 - [x] GitHub backfill run at least once
 - [x] Frontend: `/bugs/:id` detail page (GitHub link, duplicates, comments)
 - [x] LLM: OpenRouter support (`OPEN_ROUTER_API_KEY`) + provider auto-selection
+- [x] Dev helper: auto-sync GitHub webhook to current ngrok URL (`python -m src.integrations.github_webhook_sync`)
+- [x] Chat: auto-context (latest incidents/bugs/predictions) + optional semantic bug retrieval
+- [x] Bug triage: default bug list ordering by priority (severity, data-related, correlation)
+- [x] Predictions: data-driven baselines + richer features for sparse data
+- [x] Frontend: modern green/black theme + refreshed UI components
 
 ### Remaining / Next
 - [ ] Optional: run Ollama locally (only if not using OpenRouter)

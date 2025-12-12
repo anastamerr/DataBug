@@ -43,8 +43,11 @@ export function CorrelationGraph() {
   }, [data]);
 
   return (
-    <div className="rounded-lg border bg-white p-4 shadow-sm">
-      <div className="mb-3 text-sm font-semibold">Top Correlations</div>
+    <div className="surface-solid p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-sm font-semibold">Top Correlations</div>
+        <div className="badge">Last 8</div>
+      </div>
 
       {isLoading && <div className="text-sm text-gray-500">Loading...</div>}
 
@@ -53,7 +56,7 @@ export function CorrelationGraph() {
       )}
 
       {!isLoading && chartData.length > 0 && (
-        <div className="h-64">
+        <div className="h-64 overflow-hidden rounded-xl border border-black/10 bg-black/5 p-2">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ left: 0, right: 8 }}>
               <CartesianGrid strokeDasharray="3 3" />

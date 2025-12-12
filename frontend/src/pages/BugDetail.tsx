@@ -40,10 +40,8 @@ export default function BugDetail() {
   if (!id) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold">Bug</h1>
-        <div className="rounded-lg border bg-white p-4 text-sm text-gray-600">
-          Missing bug id.
-        </div>
+        <h1 className="text-2xl font-extrabold tracking-tight">Bug</h1>
+        <div className="surface-solid p-4 text-sm text-black/70">Missing bug id.</div>
       </div>
     );
   }
@@ -51,8 +49,8 @@ export default function BugDetail() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold">Bug</h1>
-        <div className="text-sm text-gray-500">Loading...</div>
+        <h1 className="text-2xl font-extrabold tracking-tight">Bug</h1>
+        <div className="text-sm text-black/60">Loading...</div>
       </div>
     );
   }
@@ -61,14 +59,12 @@ export default function BugDetail() {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Bug</h1>
-          <Link to="/bugs" className="text-sm text-blue-600 hover:underline">
+          <h1 className="text-2xl font-extrabold tracking-tight">Bug</h1>
+          <Link to="/bugs" className="btn-ghost">
             Back to Bugs
           </Link>
         </div>
-        <div className="rounded-lg border bg-white p-4 text-sm text-gray-600">
-          Bug not found.
-        </div>
+        <div className="surface-solid p-4 text-sm text-black/70">Bug not found.</div>
       </div>
     );
   }
@@ -79,123 +75,114 @@ export default function BugDetail() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">{bug.title}</h1>
-          <div className="text-sm text-gray-500">{bug.bug_id}</div>
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl font-extrabold tracking-tight">
+            {bug.title}
+          </h1>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-black/60">
+            <span className="font-mono">{bug.bug_id}</span>
+            <span className="badge">{bug.source}</span>
+            <span className="badge">{bug.classified_component}</span>
+            <span className="badge">{bug.classified_severity}</span>
+            <span className="badge">{bug.status}</span>
+          </div>
         </div>
-        <Link to="/bugs" className="text-sm text-blue-600 hover:underline">
-          Back to Bugs
-        </Link>
+        <div className="flex items-center gap-2">
+          {githubUrl ? (
+            <a
+              href={githubUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="btn-primary"
+            >
+              Open on GitHub
+            </a>
+          ) : null}
+          <Link to="/bugs" className="btn-ghost">
+            Back
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="rounded-lg border bg-white p-4 lg:col-span-2">
-          <div className="space-y-3">
-            <div className="text-xs font-semibold uppercase text-gray-500">
-              Description
-            </div>
-            <div className="whitespace-pre-wrap text-sm text-gray-800">
-              {bug.description || "—"}
-            </div>
+        <div className="surface-solid p-4 lg:col-span-2">
+          <div className="text-xs font-semibold uppercase tracking-wide text-black/50">
+            Description
+          </div>
+          <div className="mt-3 whitespace-pre-wrap text-sm text-black/80">
+            {bug.description || "—"}
           </div>
         </div>
 
-        <div className="rounded-lg border bg-white p-4">
-          <div className="space-y-2 text-sm">
-            <div className="text-xs font-semibold uppercase text-gray-500">
-              Summary
-            </div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-              <div className="text-gray-500">Source</div>
-              <div className="font-medium">{bug.source}</div>
-
-              <div className="text-gray-500">Created</div>
-              <div className="font-medium">
-                {new Date(bug.created_at).toLocaleString()}
-              </div>
-
-              <div className="text-gray-500">Reporter</div>
-              <div className="font-medium">{bug.reporter || "—"}</div>
-
-              <div className="text-gray-500">Component</div>
-              <div className="font-medium">{bug.classified_component}</div>
-
-              <div className="text-gray-500">Severity</div>
-              <div className="font-medium">{bug.classified_severity}</div>
-
-              <div className="text-gray-500">Team</div>
-              <div className="font-medium">{bug.assigned_team || "—"}</div>
-
-              <div className="text-gray-500">Status</div>
-              <div className="font-medium">{bug.status}</div>
-
-              <div className="text-gray-500">Duplicate</div>
-              <div className="font-medium">
-                {bug.is_duplicate ? "Yes" : "No"}
-              </div>
-
-              <div className="text-gray-500">Data-related</div>
-              <div className="font-medium">{bug.is_data_related ? "Yes" : "No"}</div>
-
-              <div className="text-gray-500">Correlation</div>
-              <div className="font-medium">{bug.correlation_score ?? "—"}</div>
-            </div>
-
-            {githubUrl && (
-              <div className="pt-2">
-                <a
-                  href={githubUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-blue-600 hover:underline"
-                >
-                  Open on GitHub
-                </a>
-              </div>
-            )}
-
-            {bug.duplicate_of_id && (
-              <div className="pt-2 text-sm">
-                Duplicate of{" "}
-                <Link
-                  to={`/bugs/${bug.duplicate_of_id}`}
-                  className="text-blue-600 hover:underline"
-                >
-                  {bug.duplicate_of_id}
-                </Link>
-              </div>
-            )}
+        <div className="surface-solid p-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-black/50">
+            Summary
           </div>
+          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+            <div className="text-black/50">Created</div>
+            <div className="font-medium">
+              {new Date(bug.created_at).toLocaleString()}
+            </div>
+
+            <div className="text-black/50">Reporter</div>
+            <div className="font-medium">{bug.reporter || "—"}</div>
+
+            <div className="text-black/50">Team</div>
+            <div className="font-medium">{bug.assigned_team || "—"}</div>
+
+            <div className="text-black/50">Data-related</div>
+            <div className="font-medium">{bug.is_data_related ? "Yes" : "No"}</div>
+
+            <div className="text-black/50">Correlation</div>
+            <div className="font-medium">{bug.correlation_score ?? "—"}</div>
+
+            <div className="text-black/50">Duplicate</div>
+            <div className="font-medium">{bug.is_duplicate ? "Yes" : "No"}</div>
+          </div>
+
+          {bug.duplicate_of_id ? (
+            <div className="mt-4 text-sm">
+              Duplicate of{" "}
+              <Link
+                to={`/bugs/${bug.duplicate_of_id}`}
+                className="font-mono text-black underline underline-offset-4 hover:opacity-80"
+              >
+                {bug.duplicate_of_id}
+              </Link>
+            </div>
+          ) : null}
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-lg border bg-white">
-          <div className="border-b px-4 py-3 text-sm font-semibold">
+        <div className="surface-solid overflow-hidden">
+          <div className="border-b border-black/10 px-4 py-3 text-sm font-semibold">
             Duplicate Matches
           </div>
           <div className="p-4">
             {(duplicates || []).length === 0 ? (
-              <div className="text-sm text-gray-500">No duplicates found.</div>
+              <div className="text-sm text-black/60">No duplicates found.</div>
             ) : (
               <div className="space-y-2 text-sm">
                 {(duplicates || []).slice(0, 10).map((d) => (
                   <div
                     key={d.bug_id}
-                    className="flex items-center justify-between rounded-md border px-3 py-2"
+                    className="flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-black/5 px-3 py-2"
                   >
                     <div className="min-w-0">
-                      <div className="truncate font-medium">
+                      <div className="truncate font-semibold">
                         <Link
                           to={`/bugs/${d.bug_id}`}
-                          className="text-blue-600 hover:underline"
+                          className="underline underline-offset-4 hover:opacity-80"
                         >
                           {d.title || d.bug_id}
                         </Link>
                       </div>
-                      <div className="text-xs text-gray-500">{d.status || "—"}</div>
+                      <div className="mt-0.5 text-xs text-black/60">
+                        {d.status || "—"}
+                      </div>
                     </div>
-                    <div className="ml-3 shrink-0 font-mono text-xs text-gray-700">
+                    <div className="badge font-mono">
                       {(d.similarity_score ?? 0).toFixed(3)}
                     </div>
                   </div>
@@ -205,34 +192,39 @@ export default function BugDetail() {
           </div>
         </div>
 
-        <div className="rounded-lg border bg-white">
-          <div className="border-b px-4 py-3 text-sm font-semibold">
+        <div className="surface-solid overflow-hidden">
+          <div className="border-b border-black/10 px-4 py-3 text-sm font-semibold">
             GitHub Comments
           </div>
           <div className="p-4">
             {comments.length === 0 ? (
-              <div className="text-sm text-gray-500">No comments ingested.</div>
+              <div className="text-sm text-black/60">No comments ingested.</div>
             ) : (
               <div className="space-y-3">
                 {comments.slice(0, 20).map((c: any) => (
-                  <div key={String(c.id)} className="rounded-md border p-3">
-                    <div className="flex items-center justify-between gap-3 text-xs text-gray-500">
+                  <div
+                    key={String(c.id)}
+                    className="rounded-xl border border-black/10 bg-black/5 p-3"
+                  >
+                    <div className="flex items-center justify-between gap-3 text-xs text-black/60">
                       <div className="truncate">
                         {c.user || "unknown"}
-                        {c.created_at ? ` • ${new Date(c.created_at).toLocaleString()}` : ""}
+                        {c.created_at
+                          ? ` • ${new Date(c.created_at).toLocaleString()}`
+                          : ""}
                       </div>
                       {c.url ? (
                         <a
                           href={String(c.url)}
                           target="_blank"
                           rel="noreferrer"
-                          className="shrink-0 text-blue-600 hover:underline"
+                          className="underline underline-offset-4 hover:opacity-80"
                         >
                           View
                         </a>
                       ) : null}
                     </div>
-                    <div className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
+                    <div className="mt-2 whitespace-pre-wrap text-sm text-black/80">
                       {c.body || "—"}
                     </div>
                   </div>
@@ -245,3 +237,4 @@ export default function BugDetail() {
     </div>
   );
 }
+

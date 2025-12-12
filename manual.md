@@ -85,6 +85,19 @@ Expose the backend for GitHub webhooks:
 ngrok http 8000
 ```
 
+### Dev helper: auto-fix webhook URL when ngrok changes
+
+If your GitHub webhook is pointing to the **ngrok root** (`/`) or to an old ngrok URL, run:
+
+```powershell
+cd backend
+.\.venv\Scripts\python -m src.integrations.github_webhook_sync
+```
+
+This will update any existing `ngrok-free.app` webhook URL to:
+`https://<current-ngrok-host>/api/webhooks/github`
+and trigger a GitHub ping for verification.
+
 In your GitHub repo settings → Webhooks:
 - Payload URL: `https://<ngrok-host>/api/webhooks/github`
 - Content type: `application/json`

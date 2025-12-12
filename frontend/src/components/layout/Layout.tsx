@@ -14,18 +14,29 @@ const navItems = [
 
 function linkClass(isActive: boolean) {
   return [
-    "block rounded-md px-3 py-2 text-sm font-medium",
-    isActive ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-100",
+    "group flex items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold tracking-tight transition",
+    isActive
+      ? "active bg-white/15 text-white"
+      : "text-white/80 hover:bg-white/10 hover:text-white",
   ].join(" ");
 }
 
 export function Layout() {
   return (
-    <div className="flex h-full bg-gray-50 text-gray-900">
+    <div className="flex min-h-screen w-full p-5 text-gray-900">
       <RealtimeListener />
-      <aside className="w-64 border-r bg-white p-4">
-        <div className="mb-6 text-xl font-semibold">DataBug AI</div>
-        <nav className="space-y-1">
+      <aside className="nav-surface w-72 p-4">
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-widest text-white/60">
+              databug-ai
+            </div>
+            <div className="text-xl font-extrabold tracking-tight">DataBug AI</div>
+          </div>
+          <div className="h-10 w-10 rounded-2xl bg-white/10" />
+        </div>
+
+        <nav className="space-y-1.5">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -33,14 +44,21 @@ export function Layout() {
               end={item.end}
               className={({ isActive }) => linkClass(isActive)}
             >
-              {item.label}
+              <span>{item.label}</span>
+              <span className="h-1.5 w-1.5 rounded-full bg-white/0 transition group-[.active]:bg-white/80" />
             </NavLink>
           ))}
         </nav>
+
+        <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70">
+          Real-time updates enabled via <span className="font-mono">/ws</span>
+        </div>
       </aside>
 
-      <main className="flex-1 overflow-auto p-6">
-        <Outlet />
+      <main className="flex-1 overflow-auto pl-5">
+        <div className="surface min-h-[calc(100vh-2.5rem)] p-6">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

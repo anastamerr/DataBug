@@ -27,9 +27,34 @@ export default function Dashboard() {
     ? (dataRelatedBugs / bugs.length) * 100
     : 0;
 
+  const avgMinutesToImpact = (() => {
+    if (!incidents?.length || !bugs?.length) return null;
+    const byIncident = new Map(incidents.map((i) => [i.id, i]));
+    const deltas = bugs
+      .filter((b) => b.correlated_incident_id)
+      .map((b) => {
+        const incident = byIncident.get(b.correlated_incident_id as string);
+        if (!incident) return null;
+        const ms =
+          new Date(b.created_at).getTime() - new Date(incident.timestamp).getTime();
+        if (!Number.isFinite(ms) || ms < 0) return null;
+        return ms / 60000;
+      })
+      .filter((v): v is number => typeof v === "number");
+
+    if (!deltas.length) return null;
+    const avg = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+    return Math.round(avg);
+  })();
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">DataBug AI Dashboard</h1>
+      <div>
+        <h1 className="text-2xl font-extrabold tracking-tight">Dashboard</h1>
+        <div className="mt-1 text-sm text-black/60">
+          Enterprise-grade triage across data incidents and bug reports.
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <StatsCard
@@ -50,8 +75,8 @@ export default function Dashboard() {
         />
         <StatsCard
           title="Avg Time to Root Cause"
-          value="12 min"
-          subtitle="Prev: 4.2 hrs"
+          value={avgMinutesToImpact !== null ? `${avgMinutesToImpact} min` : "—"}
+          subtitle={avgMinutesToImpact !== null ? "Avg time from incident → bug" : "Need correlated history"}
           icon={<Clock className="h-4 w-4 text-green-600" />}
         />
       </div>

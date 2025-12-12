@@ -11,9 +11,9 @@ type ChatMessage = {
 
 function classFor(role: ChatMessage["role"]) {
   if (role === "user") {
-    return "ml-auto bg-blue-600 text-white";
+    return "ml-auto bg-black text-white";
   }
-  return "mr-auto bg-gray-100 text-gray-900";
+  return "mr-auto border border-black/10 bg-white text-gray-900";
 }
 
 export default function Chat() {
@@ -57,29 +57,33 @@ export default function Chat() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-semibold">Chat</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Ask DataBug AI about incidents, bugs, and root causes.
+        <h1 className="text-2xl font-extrabold tracking-tight">Chat</h1>
+        <p className="mt-1 text-sm text-black/60">
+          Ask DataBug AI about incidents, bugs, correlations, and predictions. The
+          assistant is grounded in your latest platform data.
         </p>
       </div>
 
-      <div className="rounded-lg border bg-white p-4">
+      <div className="surface-solid p-4">
         <div className="space-y-3">
           {messages.length === 0 && (
-            <div className="text-sm text-gray-500">
-              Try: “Explain the likely root cause of the latest incident.”
+            <div className="text-sm text-black/60">
+              Try: "Explain the likely root cause of the latest incident."
             </div>
           )}
           {messages.map((m, idx) => (
-            <div key={idx} className={`max-w-[85%] rounded-lg px-3 py-2 ${classFor(m.role)}`}>
+            <div
+              key={idx}
+              className={`max-w-[85%] rounded-2xl px-3 py-2 shadow-sm ${classFor(m.role)}`}
+            >
               <div className="whitespace-pre-wrap text-sm">{m.content}</div>
               {m.role === "assistant" && m.meta?.used_llm === false && (
-                <div className="mt-1 text-xs opacity-80">
+                <div className="mt-1 text-xs opacity-70">
                   Fallback response (LLM unavailable)
                 </div>
               )}
               {m.role === "assistant" && m.meta?.used_llm && m.meta?.model && (
-                <div className="mt-1 text-xs opacity-80">Model: {m.meta.model}</div>
+                <div className="mt-1 text-xs opacity-70">Model: {m.meta.model}</div>
               )}
             </div>
           ))}
@@ -88,24 +92,21 @@ export default function Chat() {
 
       {error && <div className="text-sm text-red-600">{error}</div>}
 
-      <form onSubmit={onSubmit} className="rounded-lg border bg-white p-4">
+      <form onSubmit={onSubmit} className="surface-solid p-4">
         <div className="flex flex-col gap-3">
           <textarea
-            className="min-h-[84px] w-full resize-y rounded-md border px-3 py-2 text-sm"
+            className="min-h-[84px] w-full resize-y rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
             placeholder="Type your question..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={isSending}
           />
           <div className="flex items-center justify-between">
-            <div className="text-xs text-gray-500">
-              Endpoint: <span className="font-mono">/api/chat</span>
+            <div className="text-xs text-black/50">
+              Endpoint: <span className="font-mono">/api/chat</span>{" "}
+              <span className="badge ml-2">Auto-context</span>
             </div>
-            <button
-              type="submit"
-              disabled={!canSend}
-              className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
+            <button type="submit" disabled={!canSend} className="btn-primary">
               {isSending ? "Sending..." : "Send"}
             </button>
           </div>
@@ -114,3 +115,4 @@ export default function Chat() {
     </div>
   );
 }
+

@@ -8,4 +8,35 @@ body,
 
 body {
   margin: 0;
+  color: #0b0b0b;
+  background:
+    radial-gradient(1200px 800px at 0% 0%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 60%),
+    radial-gradient(900px 700px at 100% 100%, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0) 60%),
+    linear-gradient(135deg, #7cff9a 0%, #36d972 45%, #12b85a 100%);
+}
+
+@layer components {
+  .surface {
+    @apply rounded-2xl border border-black/10 bg-white/75 shadow-[0_10px_30px_rgba(0,0,0,0.12)] backdrop-blur-xl;
+  }
+
+  .surface-solid {
+    @apply rounded-2xl border border-black/10 bg-white shadow-sm;
+  }
+
+  .nav-surface {
+    @apply rounded-2xl border border-white/10 bg-black/45 text-white shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-black/90 disabled:opacity-50;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-medium text-black/80 hover:bg-black/5;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full border border-black/10 bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-black/80;
+  }
 }

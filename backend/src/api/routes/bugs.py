@@ -5,6 +5,7 @@ from functools import lru_cache
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from sqlalchemy import case, desc
 from sqlalchemy.orm import Session
 
 from ...api.deps import get_db
@@ -121,6 +122,7 @@ def create_bug(
 def list_bugs(
     status_filter: Optional[str] = Query(default=None, alias="status"),
     is_data_related: Optional[bool] = Query(default=None, alias="is_data_related"),
+    sort: str = Query(default="priority", alias="sort"),
     db: Session = Depends(get_db),
 ) -> List[BugReport]:
     q = db.query(BugReport)
@@ -128,7 +130,30 @@ def list_bugs(
         q = q.filter(BugReport.status == status_filter)
     if is_data_related is not None:
         q = q.filter(BugReport.is_data_related == is_data_related)
-    return q.order_by(BugReport.created_at.desc()).all()
+
+    if sort == "created_at":
+        return q.order_by(BugReport.created_at.desc()).all()
+
+    severity_rank = case(
+        (BugReport.classified_severity == "critical", 4),
+        (BugReport.classified_severity == "high", 3),
+        (BugReport.classified_severity == "medium", 2),
+        (BugReport.classified_severity == "low", 1),
+        else_=0,
+    )
+    status_rank = case((BugReport.status == "resolved", 0), else_=1)
+    data_rank = case((BugReport.is_data_related.is_(True), 1), else_=0)
+
+    return (
+        q.order_by(
+            desc(status_rank),
+            desc(severity_rank),
+            desc(data_rank),
+            BugReport.correlation_score.desc().nullslast(),
+            BugReport.created_at.desc(),
+        )
+        .all()
+    )
 
 
 @router.get("/{bug_id}", response_model=BugReportRead)

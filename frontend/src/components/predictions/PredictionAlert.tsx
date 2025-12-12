@@ -24,18 +24,32 @@ export function PredictionAlert() {
   if (!latest) return null;
 
   return (
-    <div className="rounded-lg border bg-indigo-50 p-4 text-indigo-900">
-      <div className="text-sm font-semibold">Prediction Alert</div>
-      <div className="mt-1 text-sm">
-        Expect {latest.predicted_bug_count} bugs in the next{" "}
-        {latest.prediction_window_hours ?? 6}h
-      </div>
-      {latest.predicted_components && (
-        <div className="mt-1 text-xs">
-          Components: {latest.predicted_components.join(", ")}
+    <div className="surface-solid p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-black/50">
+            Prediction Alert
+          </div>
+          <div className="mt-1 text-lg font-extrabold tracking-tight">
+            {latest.predicted_bug_count} predicted bugs
+          </div>
+          <div className="mt-1 text-sm text-black/70">
+            Next {latest.prediction_window_hours ?? 6}h •{" "}
+            {latest.confidence ? `${Math.round(latest.confidence * 100)}%` : "n/a"}{" "}
+            confidence
+          </div>
         </div>
-      )}
+        <div className="badge">Proactive</div>
+      </div>
+      {latest.predicted_components?.length ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {latest.predicted_components.slice(0, 6).map((c) => (
+            <span key={c} className="badge">
+              {c}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
-
