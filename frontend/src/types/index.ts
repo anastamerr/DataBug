@@ -11,7 +11,7 @@ export interface DataIncident {
     | "DISTRIBUTION_DRIFT"
     | "VALIDATION_FAILURE";
   severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   affected_columns: string[];
   anomaly_score: number;
   downstream_systems: string[];
@@ -27,7 +27,7 @@ export interface BugReport {
   description?: string | null;
   created_at: string;
   reporter?: string | null;
-  labels?: any;
+  labels?: unknown;
   stack_trace?: string | null;
   classified_type: "bug" | "feature" | "question";
   classified_component: string;

@@ -14,52 +14,69 @@ const navItems = [
 
 function linkClass(isActive: boolean) {
   return [
-    "group flex items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold tracking-tight transition",
+    "group flex items-center justify-between rounded-pill border border-white/10 px-4 py-2 text-sm font-semibold tracking-tight transition-colors duration-200 ease-fluid",
     isActive
-      ? "active bg-white/15 text-white"
-      : "text-white/80 hover:bg-white/10 hover:text-white",
+      ? "active bg-neon-mint text-void border-transparent"
+      : "text-white/80 hover:border-neon-mint/40 hover:bg-white/5 hover:text-white",
   ].join(" ");
 }
 
 export function Layout() {
   return (
-    <div className="flex min-h-screen w-full p-5 text-gray-900">
+    <div className="relative min-h-screen bg-void text-white">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      >
+        <div className="absolute -top-48 left-1/2 h-[720px] w-[720px] -translate-x-1/2 rounded-full bg-neon-mint/10 blur-3xl" />
+        <div className="absolute -bottom-52 left-0 h-[640px] w-[640px] rounded-full bg-neon-mint/5 blur-3xl" />
+      </div>
       <RealtimeListener />
-      <aside className="nav-surface w-72 p-4">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-widest text-white/60">
-              databug-ai
+      <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-4 lg:flex-row lg:gap-6 lg:p-6">
+        <aside className="surface w-full p-4 lg:w-80">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-pill bg-neon-mint shadow-[0_0_28px_rgba(0,215,104,0.35)]" />
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">
+                  DataBug AI
+                </div>
+              </div>
+              <div className="mt-2 text-xl font-extrabold tracking-tight">
+                Neon Ops Console
+              </div>
+              <div className="mt-1 text-sm text-white/60">
+                Monitor, correlate, and predict bugs from data incidents.
+              </div>
             </div>
-            <div className="text-xl font-extrabold tracking-tight">DataBug AI</div>
+            <div className="h-10 w-10 rounded-card border border-white/10 bg-white/5" />
           </div>
-          <div className="h-10 w-10 rounded-2xl bg-white/10" />
-        </div>
 
-        <nav className="space-y-1.5">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) => linkClass(isActive)}
-            >
-              <span>{item.label}</span>
-              <span className="h-1.5 w-1.5 rounded-full bg-white/0 transition group-[.active]:bg-white/80" />
-            </NavLink>
-          ))}
-        </nav>
+          <nav className="mt-5 flex flex-wrap gap-2 lg:flex-col">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) => linkClass(isActive)}
+              >
+                <span className="truncate">{item.label}</span>
+                <span className="h-1.5 w-1.5 rounded-pill bg-white/0 transition group-[.active]:bg-void/70" />
+              </NavLink>
+            ))}
+          </nav>
 
-        <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70">
-          Real-time updates enabled via <span className="font-mono">/ws</span>
-        </div>
-      </aside>
+          <div className="mt-5 rounded-card border border-white/10 bg-void p-3 text-xs text-white/70">
+            Real-time updates via <span className="font-mono text-white/80">/ws</span>
+          </div>
+        </aside>
 
-      <main className="flex-1 overflow-auto pl-5">
-        <div className="surface min-h-[calc(100vh-2.5rem)] p-6">
-          <Outlet />
-        </div>
-      </main>
+        <main className="flex-1">
+          <div className="surface min-h-[calc(100vh-2rem)] p-4 lg:min-h-[calc(100vh-3rem)] lg:p-6">
+            <Outlet />
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

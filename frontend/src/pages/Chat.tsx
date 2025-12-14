@@ -9,11 +9,11 @@ type ChatMessage = {
   meta?: { used_llm?: boolean; model?: string | null };
 };
 
-function classFor(role: ChatMessage["role"]) {
+function messageClass(role: ChatMessage["role"]) {
   if (role === "user") {
-    return "ml-auto bg-black text-white";
+    return "ml-auto bg-neon-mint text-void";
   }
-  return "mr-auto border border-black/10 bg-white text-gray-900";
+  return "mr-auto border border-white/10 bg-surface text-white";
 }
 
 export default function Chat() {
@@ -47,64 +47,78 @@ export default function Chat() {
           meta: { used_llm: resp.used_llm, model: resp.model },
         },
       ]);
-    } catch (err: any) {
-      setError(err?.message || "Failed to send message.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to send message.");
     } finally {
       setIsSending(false);
     }
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Chat</h1>
-        <p className="mt-1 text-sm text-black/60">
+    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+      <div className="surface-solid p-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-white">Chat</h1>
+        <p className="mt-1 text-sm text-white/60">
           Ask DataBug AI about incidents, bugs, correlations, and predictions. The
           assistant is grounded in your latest platform data.
         </p>
       </div>
 
-      <div className="surface-solid p-4">
+      <div className="surface-solid p-5">
         <div className="space-y-3">
           {messages.length === 0 && (
-            <div className="text-sm text-black/60">
-              Try: "Explain the likely root cause of the latest incident."
+            <div className="text-sm text-white/60">
+              Try: “Explain the likely root cause of the latest incident.”
             </div>
           )}
-          {messages.map((m, idx) => (
+
+          {messages.map((message, idx) => (
             <div
               key={idx}
-              className={`max-w-[85%] rounded-2xl px-3 py-2 shadow-sm ${classFor(m.role)}`}
+              className={`max-w-[90%] rounded-card px-4 py-3 text-sm shadow-[0_12px_40px_rgba(0,0,0,0.35)] ${messageClass(
+                message.role
+              )}`}
             >
-              <div className="whitespace-pre-wrap text-sm">{m.content}</div>
-              {m.role === "assistant" && m.meta?.used_llm === false && (
-                <div className="mt-1 text-xs opacity-70">
+              <div className="whitespace-pre-wrap">{message.content}</div>
+
+              {message.role === "assistant" && message.meta?.used_llm === false && (
+                <div className="mt-2 text-xs text-white/60">
                   Fallback response (LLM unavailable)
                 </div>
               )}
-              {m.role === "assistant" && m.meta?.used_llm && m.meta?.model && (
-                <div className="mt-1 text-xs opacity-70">Model: {m.meta.model}</div>
-              )}
+              {message.role === "assistant" &&
+                message.meta?.used_llm &&
+                message.meta?.model && (
+                  <div className="mt-2 text-xs text-white/60">
+                    Model: {message.meta.model}
+                  </div>
+                )}
             </div>
           ))}
         </div>
       </div>
 
-      {error && <div className="text-sm text-red-600">{error}</div>}
+      {error && (
+        <div className="rounded-card border border-white/10 bg-void p-4 text-sm text-white/80">
+          {error}
+        </div>
+      )}
 
-      <form onSubmit={onSubmit} className="surface-solid p-4">
+      <form onSubmit={onSubmit} className="surface-solid p-5">
         <div className="flex flex-col gap-3">
           <textarea
-            className="min-h-[84px] w-full resize-y rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
+            className="min-h-[92px] w-full resize-y rounded-card border-2 border-white/10 bg-void px-4 py-3 text-sm text-white placeholder-white/30 outline-none transition-colors duration-200 ease-fluid focus:border-neon-mint disabled:opacity-60"
             placeholder="Type your question..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={isSending}
           />
-          <div className="flex items-center justify-between">
-            <div className="text-xs text-black/50">
-              Endpoint: <span className="font-mono">/api/chat</span>{" "}
-              <span className="badge ml-2">Auto-context</span>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-xs text-white/60">
+              Endpoint: <span className="font-mono text-white/80">/api/chat</span>{" "}
+              <span className="badge ml-2 border-neon-mint/40 bg-neon-mint/10 text-neon-mint">
+                Auto-context
+              </span>
             </div>
             <button type="submit" disabled={!canSend} className="btn-primary">
               {isSending ? "Sending..." : "Send"}
@@ -115,4 +129,3 @@ export default function Chat() {
     </div>
   );
 }
-

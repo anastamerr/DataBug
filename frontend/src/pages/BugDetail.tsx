@@ -4,18 +4,50 @@ import { Link, useParams } from "react-router-dom";
 import { bugsApi } from "../api/bugs";
 import type { BugReport } from "../types";
 
+type GitHubComment = {
+  id?: string | number;
+  user?: string;
+  created_at?: string;
+  url?: string;
+  body?: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 function getGitHubUrl(bug: BugReport): string | null {
-  const labels = bug.labels as any;
-  if (!labels || typeof labels !== "object") return null;
-  const url = labels.url;
+  if (!isRecord(bug.labels)) return null;
+  const url = bug.labels["url"];
   return typeof url === "string" && url.length ? url : null;
 }
 
-function getGitHubComments(bug: BugReport) {
-  const labels = bug.labels as any;
-  if (!labels || typeof labels !== "object") return [];
-  const comments = labels.comments;
-  return Array.isArray(comments) ? comments : [];
+function getGitHubComments(bug: BugReport): GitHubComment[] {
+  if (!isRecord(bug.labels)) return [];
+  const comments = bug.labels["comments"];
+  if (!Array.isArray(comments)) return [];
+
+  return comments
+    .filter(isRecord)
+    .map((comment) => ({
+      id:
+        typeof comment["id"] === "string" || typeof comment["id"] === "number"
+          ? (comment["id"] as string | number)
+          : undefined,
+      user: typeof comment["user"] === "string" ? (comment["user"] as string) : undefined,
+      created_at:
+        typeof comment["created_at"] === "string"
+          ? (comment["created_at"] as string)
+          : undefined,
+      url: typeof comment["url"] === "string" ? (comment["url"] as string) : undefined,
+      body: typeof comment["body"] === "string" ? (comment["body"] as string) : undefined,
+    }));
+}
+
+function displayValue(value: unknown) {
+  if (value === null || value === undefined) return "—";
+  const text = String(value).trim();
+  return text.length ? text : "—";
 }
 
 export default function BugDetail() {
@@ -39,32 +71,42 @@ export default function BugDetail() {
 
   if (!id) {
     return (
-      <div className="space-y-4">
-        <h1 className="text-2xl font-extrabold tracking-tight">Bug</h1>
-        <div className="surface-solid p-4 text-sm text-black/70">Missing bug id.</div>
+      <div className="space-y-6">
+        <div className="surface-solid p-6">
+          <h1 className="text-2xl font-extrabold tracking-tight text-white">Bug</h1>
+          <p className="mt-1 text-sm text-white/60">Missing bug id.</p>
+        </div>
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <h1 className="text-2xl font-extrabold tracking-tight">Bug</h1>
-        <div className="text-sm text-black/60">Loading...</div>
+      <div className="space-y-6">
+        <div className="surface-solid p-6">
+          <h1 className="text-2xl font-extrabold tracking-tight text-white">Bug</h1>
+          <p className="mt-1 text-sm text-white/60">Loading...</p>
+        </div>
       </div>
     );
   }
 
   if (error || !bug) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold tracking-tight">Bug</h1>
-          <Link to="/bugs" className="btn-ghost">
-            Back to Bugs
-          </Link>
+      <div className="space-y-6">
+        <div className="surface-solid p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-extrabold tracking-tight text-white">
+                Bug
+              </h1>
+              <p className="mt-1 text-sm text-white/60">Bug not found.</p>
+            </div>
+            <Link to="/bugs" className="btn-ghost">
+              Back to Bugs
+            </Link>
+          </div>
         </div>
-        <div className="surface-solid p-4 text-sm text-black/70">Bug not found.</div>
       </div>
     );
   }
@@ -73,79 +115,93 @@ export default function BugDetail() {
   const comments = getGitHubComments(bug);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl font-extrabold tracking-tight">
-            {bug.title}
-          </h1>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-black/60">
-            <span className="font-mono">{bug.bug_id}</span>
-            <span className="badge">{bug.source}</span>
-            <span className="badge">{bug.classified_component}</span>
-            <span className="badge">{bug.classified_severity}</span>
-            <span className="badge">{bug.status}</span>
+    <div className="space-y-6">
+      <div className="surface-solid p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="badge font-mono text-white/80">{bug.bug_id}</span>
+              <span className="badge">{bug.source}</span>
+              <span className="badge">{bug.classified_component}</span>
+              <span className="badge">{bug.classified_severity}</span>
+              <span className="badge">{bug.status}</span>
+            </div>
+
+            <h1 className="mt-3 truncate text-2xl font-extrabold tracking-tight text-white">
+              {bug.title}
+            </h1>
+            <p className="mt-1 text-sm text-white/60">
+              Created {new Date(bug.created_at).toLocaleString()}
+            </p>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {githubUrl ? (
-            <a
-              href={githubUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="btn-primary"
-            >
-              Open on GitHub
-            </a>
-          ) : null}
-          <Link to="/bugs" className="btn-ghost">
-            Back
-          </Link>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {githubUrl ? (
+              <a
+                href={githubUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-primary"
+              >
+                Open on GitHub
+              </a>
+            ) : null}
+            <Link to="/bugs" className="btn-ghost">
+              Back
+            </Link>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="surface-solid p-4 lg:col-span-2">
-          <div className="text-xs font-semibold uppercase tracking-wide text-black/50">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="surface-solid p-6 lg:col-span-2">
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">
             Description
           </div>
-          <div className="mt-3 whitespace-pre-wrap text-sm text-black/80">
-            {bug.description || "—"}
+          <div className="mt-4 whitespace-pre-wrap text-sm text-white/80">
+            {displayValue(bug.description) === "—"
+              ? "No description provided."
+              : displayValue(bug.description)}
           </div>
         </div>
 
-        <div className="surface-solid p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-black/50">
+        <div className="surface-solid p-6">
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">
             Summary
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-            <div className="text-black/50">Created</div>
-            <div className="font-medium">
-              {new Date(bug.created_at).toLocaleString()}
-            </div>
+          <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3 text-sm">
+            <dt className="text-white/60">Reporter</dt>
+            <dd className="font-semibold text-white">{displayValue(bug.reporter)}</dd>
 
-            <div className="text-black/50">Reporter</div>
-            <div className="font-medium">{bug.reporter || "—"}</div>
+            <dt className="text-white/60">Team</dt>
+            <dd className="font-semibold text-white">
+              {displayValue(bug.assigned_team)}
+            </dd>
 
-            <div className="text-black/50">Team</div>
-            <div className="font-medium">{bug.assigned_team || "—"}</div>
+            <dt className="text-white/60">Data-related</dt>
+            <dd className="font-semibold text-white">
+              {bug.is_data_related ? "Yes" : "No"}
+            </dd>
 
-            <div className="text-black/50">Data-related</div>
-            <div className="font-medium">{bug.is_data_related ? "Yes" : "No"}</div>
+            <dt className="text-white/60">Correlation</dt>
+            <dd className="font-semibold text-white">
+              {bug.correlation_score === undefined || bug.correlation_score === null
+                ? "—"
+                : bug.correlation_score.toFixed(3)}
+            </dd>
 
-            <div className="text-black/50">Correlation</div>
-            <div className="font-medium">{bug.correlation_score ?? "—"}</div>
-
-            <div className="text-black/50">Duplicate</div>
-            <div className="font-medium">{bug.is_duplicate ? "Yes" : "No"}</div>
-          </div>
+            <dt className="text-white/60">Duplicate</dt>
+            <dd className="font-semibold text-white">
+              {bug.is_duplicate ? "Yes" : "No"}
+            </dd>
+          </dl>
 
           {bug.duplicate_of_id ? (
-            <div className="mt-4 text-sm">
+            <div className="mt-5 text-sm text-white/80">
               Duplicate of{" "}
               <Link
                 to={`/bugs/${bug.duplicate_of_id}`}
-                className="font-mono text-black underline underline-offset-4 hover:opacity-80"
+                className="font-mono text-neon-mint underline underline-offset-4 hover:opacity-80"
               >
                 {bug.duplicate_of_id}
               </Link>
@@ -154,36 +210,36 @@ export default function BugDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="surface-solid overflow-hidden">
-          <div className="border-b border-black/10 px-4 py-3 text-sm font-semibold">
+          <div className="border-b border-white/10 bg-surface px-5 py-4 text-sm font-semibold tracking-tight text-white">
             Duplicate Matches
           </div>
-          <div className="p-4">
+          <div className="p-5">
             {(duplicates || []).length === 0 ? (
-              <div className="text-sm text-black/60">No duplicates found.</div>
+              <div className="text-sm text-white/60">No duplicates found.</div>
             ) : (
               <div className="space-y-2 text-sm">
-                {(duplicates || []).slice(0, 10).map((d) => (
+                {(duplicates || []).slice(0, 10).map((match) => (
                   <div
-                    key={d.bug_id}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-black/5 px-3 py-2"
+                    key={match.bug_id}
+                    className="flex items-center justify-between gap-4 rounded-card border border-white/10 bg-surface px-4 py-3 transition-colors duration-200 ease-fluid hover:border-neon-mint/40"
                   >
                     <div className="min-w-0">
-                      <div className="truncate font-semibold">
+                      <div className="truncate font-semibold text-white">
                         <Link
-                          to={`/bugs/${d.bug_id}`}
-                          className="underline underline-offset-4 hover:opacity-80"
+                          to={`/bugs/${match.bug_id}`}
+                          className="underline decoration-white/20 underline-offset-4 hover:decoration-neon-mint/60 hover:text-neon-mint"
                         >
-                          {d.title || d.bug_id}
+                          {match.title || match.bug_id}
                         </Link>
                       </div>
-                      <div className="mt-0.5 text-xs text-black/60">
-                        {d.status || "—"}
+                      <div className="mt-1 text-xs text-white/60">
+                        {displayValue(match.status)}
                       </div>
                     </div>
-                    <div className="badge font-mono">
-                      {(d.similarity_score ?? 0).toFixed(3)}
+                    <div className="badge font-mono text-white/80">
+                      {(match.similarity_score ?? 0).toFixed(3)}
                     </div>
                   </div>
                 ))}
@@ -193,39 +249,41 @@ export default function BugDetail() {
         </div>
 
         <div className="surface-solid overflow-hidden">
-          <div className="border-b border-black/10 px-4 py-3 text-sm font-semibold">
+          <div className="border-b border-white/10 bg-surface px-5 py-4 text-sm font-semibold tracking-tight text-white">
             GitHub Comments
           </div>
-          <div className="p-4">
+          <div className="p-5">
             {comments.length === 0 ? (
-              <div className="text-sm text-black/60">No comments ingested.</div>
+              <div className="text-sm text-white/60">No comments ingested.</div>
             ) : (
               <div className="space-y-3">
-                {comments.slice(0, 20).map((c: any) => (
+                {comments.slice(0, 20).map((comment, idx) => (
                   <div
-                    key={String(c.id)}
-                    className="rounded-xl border border-black/10 bg-black/5 p-3"
+                    key={String(comment.id ?? comment.url ?? idx)}
+                    className="rounded-card border border-white/10 bg-surface p-4"
                   >
-                    <div className="flex items-center justify-between gap-3 text-xs text-black/60">
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-white/60">
                       <div className="truncate">
-                        {c.user || "unknown"}
-                        {c.created_at
-                          ? ` • ${new Date(c.created_at).toLocaleString()}`
+                        {displayValue(comment.user)}
+                        {comment.created_at
+                          ? ` • ${new Date(comment.created_at).toLocaleString()}`
                           : ""}
                       </div>
-                      {c.url ? (
+                      {comment.url ? (
                         <a
-                          href={String(c.url)}
+                          href={String(comment.url)}
                           target="_blank"
                           rel="noreferrer"
-                          className="underline underline-offset-4 hover:opacity-80"
+                          className="text-neon-mint underline underline-offset-4 hover:opacity-80"
                         >
                           View
                         </a>
                       ) : null}
                     </div>
-                    <div className="mt-2 whitespace-pre-wrap text-sm text-black/80">
-                      {c.body || "—"}
+                    <div className="mt-3 whitespace-pre-wrap text-sm text-white/80">
+                      {displayValue(comment.body) === "—"
+                        ? "—"
+                        : displayValue(comment.body)}
                     </div>
                   </div>
                 ))}
@@ -237,4 +295,3 @@ export default function BugDetail() {
     </div>
   );
 }
-

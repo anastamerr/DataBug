@@ -24,28 +24,32 @@ export function PredictionAlert() {
   if (!latest) return null;
 
   return (
-    <div className="surface-solid p-4">
-      <div className="flex items-start justify-between gap-3">
+    <div className="surface-solid p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-black/50">
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">
             Prediction Alert
           </div>
-          <div className="mt-1 text-lg font-extrabold tracking-tight">
+          <div className="mt-2 text-lg font-extrabold tracking-tight text-white">
             {latest.predicted_bug_count} predicted bugs
           </div>
-          <div className="mt-1 text-sm text-black/70">
+          <div className="mt-1 text-sm text-white/60">
             Next {latest.prediction_window_hours ?? 6}h •{" "}
-            {latest.confidence ? `${Math.round(latest.confidence * 100)}%` : "n/a"}{" "}
-            confidence
+            {latest.confidence
+              ? `${Math.round(latest.confidence * 100)}% confidence`
+              : "n/a confidence"}
           </div>
         </div>
-        <div className="badge">Proactive</div>
+        <div className="badge border-neon-mint/40 bg-neon-mint/10 text-neon-mint">
+          Proactive
+        </div>
       </div>
+
       {latest.predicted_components?.length ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {latest.predicted_components.slice(0, 6).map((c) => (
-            <span key={c} className="badge">
-              {c}
+        <div className="mt-4 flex flex-wrap gap-2">
+          {latest.predicted_components.slice(0, 6).map((component) => (
+            <span key={component} className="badge">
+              {component}
             </span>
           ))}
         </div>

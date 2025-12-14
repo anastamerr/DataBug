@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+@source "../index.html";
+@source "./**/*.{js,ts,jsx,tsx}";
+
+@theme {
+  /* Color Palette */
+  --color-neon-mint: #00d768ff;  /* Vivid Green from image */
+  --color-void: #000000;       /* True Black */
+  --color-surface: #111111;    /* Slightly lighter black for heavy grouping only */
+
+  /* Geometry & Typography */
+  --radius-card: 24px;         /* Large rounded corners */
+  --radius-pill: 9999px;       /* Full pill shape */
+  --font-sans: "Inter", system-ui, sans-serif;
+  --ease-fluid: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
 html,
 body,
 #root {
@@ -8,35 +24,40 @@ body,
 
 body {
   margin: 0;
-  color: #0b0b0b;
-  background:
-    radial-gradient(1200px 800px at 0% 0%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 60%),
-    radial-gradient(900px 700px at 100% 100%, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0) 60%),
-    linear-gradient(135deg, #7cff9a 0%, #36d972 45%, #12b85a 100%);
+  @apply bg-void text-white font-sans antialiased;
+}
+
+::selection {
+  background: var(--color-neon-mint);
+  color: var(--color-void);
 }
 
 @layer components {
   .surface {
-    @apply rounded-2xl border border-black/10 bg-white/75 shadow-[0_10px_30px_rgba(0,0,0,0.12)] backdrop-blur-xl;
+    @apply bg-surface border border-white/10 rounded-card;
   }
 
   .surface-solid {
-    @apply rounded-2xl border border-black/10 bg-white shadow-sm;
+    @apply bg-void border border-white/10 rounded-card hover:border-neon-mint/50 transition-colors duration-200 ease-fluid;
   }
 
   .nav-surface {
-    @apply rounded-2xl border border-white/10 bg-black/45 text-white shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl;
+    @apply bg-void border border-white/10 rounded-card;
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-black/90 disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-pill bg-neon-mint px-4 py-2 text-sm font-bold tracking-tight text-void hover:scale-105 active:scale-95 transition-transform duration-200 ease-fluid disabled:opacity-60 disabled:hover:scale-100 disabled:active:scale-100;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-medium text-black/80 hover:bg-black/5;
+    @apply inline-flex items-center justify-center rounded-pill border border-white/10 bg-white/0 px-3 py-2 text-sm font-semibold tracking-tight text-white/80 hover:bg-white/5 hover:text-white transition-colors duration-200 ease-fluid;
   }
 
   .badge {
-    @apply inline-flex items-center rounded-full border border-black/10 bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-black/80;
+    @apply inline-flex items-center rounded-pill border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/70;
+  }
+
+  .input {
+    @apply bg-void border-2 border-white/10 text-white rounded-pill focus:border-neon-mint focus:outline-none placeholder-white/30 px-3 py-2;
   }
 }
