@@ -22,10 +22,10 @@ class SemgrepRunner:
             "off",
         ]
 
-        rulesets = self.resolve_rulesets(languages)
-        if rulesets:
-            for ruleset in rulesets:
-                cmd.extend(["--config", ruleset])
+        configs = self.resolve_configs(repo_path, languages)
+        if configs:
+            for config in configs:
+                cmd.extend(["--config", config])
         else:
             cmd.extend(["--config", "auto"])
 
@@ -47,6 +47,47 @@ class SemgrepRunner:
             "java": "p/java",
         }
         return sorted({mapping[lang] for lang in languages if lang in mapping})
+
+    def resolve_configs(self, repo_path: Path, languages: List[str]) -> List[str]:
+        configs: List[str] = []
+        configs.extend(self._get_local_configs(repo_path))
+        configs.extend(self.resolve_rulesets(languages))
+        return configs
+
+    def _get_local_configs(self, repo_path: Path) -> List[str]:
+        candidates = [
+            ".semgrep.yml",
+            ".semgrep.yaml",
+            "semgrep.yml",
+            "semgrep.yaml",
+        ]
+        configs: List[str] = []
+        for name in candidates:
+            config_path = repo_path / name
+            if config_path.is_file():
+                configs.append(str(config_path))
+        return configs
+
+    def format_config_labels(self, repo_path: Path, configs: List[str]) -> List[str]:
+        labels: List[str] = []
+        for config in configs:
+            try:
+                path = Path(config)
+            except (TypeError, ValueError):
+                labels.append(str(config))
+                continue
+
+            if path.is_file():
+                try:
+                    relative = path.relative_to(repo_path)
+                except ValueError:
+                    relative = None
+                if relative is not None:
+                    labels.append(f"local:{relative.as_posix()}")
+                    continue
+
+            labels.append(str(config))
+        return labels
 
     def get_version(self) -> str | None:
         try:

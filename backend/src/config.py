@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     llm_provider: str = "auto"  # auto | ollama | openrouter
     open_router_api_key: Optional[str] = None
-    open_router_model: str = "meta-llama/llama-3.1-8b-instruct"
+    open_router_model: str = "google/gemini-2.0-flash-lite-001"
     open_router_base_url: str = "https://openrouter.ai/api/v1"
     open_router_site_url: Optional[str] = None
     open_router_app_name: Optional[str] = None

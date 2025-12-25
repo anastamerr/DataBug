@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 import uuid
 
@@ -21,6 +22,32 @@ def _truncate(text: str, max_len: int = 500) -> str:
     if len(text) <= max_len:
         return text
     return text[: max_len - 3] + "..."
+
+
+def _guess_language(file_path: str) -> str:
+    ext = Path(file_path).suffix.lower()
+    mapping = {
+        ".py": "python",
+        ".js": "javascript",
+        ".jsx": "javascript",
+        ".ts": "typescript",
+        ".tsx": "typescript",
+        ".go": "go",
+        ".java": "java",
+    }
+    return mapping.get(ext, "")
+
+
+def _code_block(code: str, language: str = "") -> str:
+    if not code:
+        return "n/a"
+    return f"```{language}\n{code}\n```"
+
+
+def _format_list(items: list[str] | None, empty_label: str = "none") -> str:
+    if not items:
+        return empty_label
+    return ", ".join(items)
 
 
 def _bug_brief(bug: BugReport) -> str:
@@ -182,11 +209,94 @@ def _build_context(
     return "\n\n".join(parts).strip()
 
 
+def _build_focus_context(
+    bug: BugReport | None,
+    scan: Scan | None,
+    finding: Finding | None,
+    *,
+    scan_findings: list[Finding],
+) -> str:
+    parts: list[str] = []
+
+    if scan:
+        parts.append(
+            "\n".join(
+                [
+                    "FOCUS SCAN:",
+                    f"- Repo: {scan.repo_url}",
+                    f"- Branch: {scan.branch}",
+                    f"- Status: {scan.status}",
+                    f"- Findings: {scan.total_findings}",
+                    f"- Filtered: {scan.filtered_findings}",
+                    f"- Languages: {_format_list(scan.detected_languages)}",
+                    f"- Rulesets: {_format_list(scan.rulesets, 'auto')}",
+                    f"- Files scanned: {scan.scanned_files or 'n/a'}",
+                    f"- Semgrep: {scan.semgrep_version or 'n/a'}",
+                ]
+            )
+        )
+
+    if scan_findings and not finding:
+        parts.append(
+            "FOCUS SCAN FINDINGS:\n"
+            + "\n".join(_finding_brief(f) for f in scan_findings)
+        )
+
+    if finding:
+        language = _guess_language(finding.file_path)
+        code = finding.context_snippet or finding.code_snippet or ""
+        parts.append(
+            "\n".join(
+                [
+                    "FOCUS FINDING:",
+                    f"- Rule: {finding.rule_id}",
+                    f"- Message: {finding.rule_message or ''}",
+                    f"- Semgrep severity: {finding.semgrep_severity}",
+                    f"- AI severity: {finding.ai_severity or finding.semgrep_severity}",
+                    f"- Confidence: {finding.ai_confidence}",
+                    f"- File: {finding.file_path}:{finding.line_start}-{finding.line_end}",
+                    f"- Function: {finding.function_name or 'n/a'}",
+                    f"- Class: {finding.class_name or 'n/a'}",
+                    f"- Test file: {finding.is_test_file}",
+                    f"- Generated: {finding.is_generated}",
+                    f"- Imports: {_format_list(finding.imports)}",
+                    f"- Status: {finding.status}",
+                    f"- Priority: {finding.priority_score if finding.priority_score is not None else 'n/a'}",
+                    f"- Reasoning: {finding.ai_reasoning or ''}",
+                    f"- Exploitability: {finding.exploitability or ''}",
+                    "CODE:",
+                    _code_block(code, language),
+                ]
+            )
+        )
+
+    if bug:
+        parts.append(
+            "\n".join(
+                [
+                    "FOCUS BUG:",
+                    f"- Title: {bug.title}",
+                    f"- Component: {bug.classified_component}",
+                    f"- Severity: {bug.classified_severity}",
+                    f"- Status: {bug.status}",
+                    f"- Description: {bug.description or ''}",
+                ]
+            )
+        )
+
+    return "\n\n".join(part for part in parts if part).strip()
+
+
 @router.post("", response_model=ChatResponse)
 async def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
     bug: BugReport | None = None
     scan: Scan | None = None
     finding: Finding | None = None
+
+    focus_bug = payload.bug_id is not None
+    focus_finding = payload.finding_id is not None
+    focus_scan = payload.scan_id is not None and not focus_finding
+    focus_mode = focus_bug or focus_finding or focus_scan
 
     if payload.bug_id is not None and bug is None:
         bug = db.query(BugReport).filter(BugReport.id == payload.bug_id).first()
@@ -208,26 +318,32 @@ async def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatRespo
 
     # If user didn't provide specific IDs, we still want the assistant to be useful
     # by attaching recent platform context and a "focus" bug.
-    recent_bugs = (
-        db.query(BugReport).order_by(BugReport.created_at.desc()).limit(5).all()
-    )
-
-    if bug is None:
-        bug = db.query(BugReport).order_by(BugReport.created_at.desc()).first()
-
-    # High-priority bug queue (enterprise triage default).
-    bug_q = _priority_order_query(db.query(BugReport)).limit(8).all()
-
-    recent_scans = db.query(Scan).order_by(Scan.created_at.desc()).limit(5).all()
-    finding_q = (
-        _finding_order_query(
-            db.query(Finding).filter(Finding.is_false_positive.is_(False))
-        )
-        .limit(8)
-        .all()
-    )
+    recent_bugs: list[BugReport] = []
+    bug_q: list[BugReport] = []
+    recent_scans: list[Scan] = []
+    finding_q: list[Finding] = []
     scan_findings: list[Finding] = []
-    if scan is not None:
+
+    if not focus_mode:
+        recent_bugs = (
+            db.query(BugReport).order_by(BugReport.created_at.desc()).limit(5).all()
+        )
+        if bug is None:
+            bug = db.query(BugReport).order_by(BugReport.created_at.desc()).first()
+
+        # High-priority bug queue (enterprise triage default).
+        bug_q = _priority_order_query(db.query(BugReport)).limit(8).all()
+
+        recent_scans = db.query(Scan).order_by(Scan.created_at.desc()).limit(5).all()
+        finding_q = (
+            _finding_order_query(
+                db.query(Finding).filter(Finding.is_false_positive.is_(False))
+            )
+            .limit(8)
+            .all()
+        )
+
+    if scan is not None and focus_scan:
         scan_findings = (
             _finding_order_query(
                 db.query(Finding).filter(
@@ -241,55 +357,79 @@ async def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatRespo
 
     # Semantic retrieval: pull relevant bugs for the user's question (optional).
     semantic_bugs: list[BugReport] = []
-    pinecone = _get_pinecone_safe()
-    if pinecone is not None and payload.message.strip():
-        try:
-            matches = pinecone.find_similar_bugs(payload.message, "", top_k=5)
-            ids: list[uuid.UUID] = []
-            for m in matches or []:
-                mid = getattr(m, "id", None)
-                if isinstance(mid, str):
-                    try:
-                        ids.append(uuid.UUID(mid))
-                    except ValueError:
-                        continue
-            if ids:
-                semantic_bugs = (
-                    db.query(BugReport)
-                    .filter(BugReport.id.in_(ids))
-                    .all()
-                )
-        except Exception:
-            semantic_bugs = []
+    if not focus_mode:
+        pinecone = _get_pinecone_safe()
+        if pinecone is not None and payload.message.strip():
+            try:
+                matches = pinecone.find_similar_bugs(payload.message, "", top_k=5)
+                ids: list[uuid.UUID] = []
+                for m in matches or []:
+                    mid = getattr(m, "id", None)
+                    if isinstance(mid, str):
+                        try:
+                            ids.append(uuid.UUID(mid))
+                        except ValueError:
+                            continue
+                if ids:
+                    semantic_bugs = (
+                        db.query(BugReport)
+                        .filter(BugReport.id.in_(ids))
+                        .all()
+                    )
+            except Exception:
+                semantic_bugs = []
 
-    context = _build_context(
-        bug,
-        scan,
-        finding,
-        recent_bugs=recent_bugs,
-        bug_queue=bug_q,
-        semantic_bugs=semantic_bugs,
-        recent_scans=recent_scans,
-        finding_queue=finding_q,
-        scan_findings=scan_findings,
-    )
+    if focus_mode:
+        context = _build_focus_context(
+            bug,
+            scan,
+            finding,
+            scan_findings=scan_findings,
+        )
+    else:
+        context = _build_context(
+            bug,
+            scan,
+            finding,
+            recent_bugs=recent_bugs,
+            bug_queue=bug_q,
+            semantic_bugs=semantic_bugs,
+            recent_scans=recent_scans,
+            finding_queue=finding_q,
+            scan_findings=scan_findings,
+        )
 
     system = (
         "You are ScanGuard AI, an enterprise-grade assistant for security findings and bug triage.\n"
         "Use ONLY the provided platform context. Be concise, technical, and actionable.\n"
-        "Do not ask for context if the snapshot already includes bugs; instead make the best recommendation.\n"
+        "Respond in Markdown.\n"
+        "If a focus finding is provided, answer only about that issue and avoid unrelated queue items.\n"
+        "If the user asks for code suggestions, provide minimal, safe patches with file paths.\n"
         "If something critical is missing, ask at most 1-2 specific questions."
     )
-    prompt = (
-        (f"{context}\n\n" if context else "")
-        + f"USER QUESTION:\n{payload.message}\n\n"
-        "Answer with:\n"
-        "1) Root cause hypothesis (with confidence)\n"
-        "2) Evidence from context (bullets)\n"
-        "3) Impacted users/components\n"
-        "4) Triage plan (next best actions + owners)\n"
-        "5) Prioritization (top 3 findings/bugs from the queue, if relevant)\n"
-    )
+
+    if focus_mode:
+        prompt = (
+            (f"{context}\n\n" if context else "")
+            + f"USER QUESTION:\n{payload.message}\n\n"
+            "Answer with:\n"
+            "1) Summary (what is happening)\n"
+            "2) Risk/impact (or why this is likely a false positive)\n"
+            "3) Recommended fix (include code suggestions only if requested)\n"
+            "4) Validation steps\n"
+        )
+    else:
+        prompt = (
+            (f"{context}\n\n" if context else "")
+            + f"USER QUESTION:\n{payload.message}\n\n"
+            "Answer with:\n"
+            "1) Root cause hypothesis (with confidence)\n"
+            "2) Evidence from context (bullets)\n"
+            "3) Impacted users/components\n"
+            "4) Triage plan (next best actions + owners)\n"
+            "5) Prioritization (top 3 findings/bugs from the queue, if relevant)\n"
+            "Rank items individually based on exploitability and context.\n"
+        )
 
     settings = get_settings()
     llm = get_llm_service(settings)

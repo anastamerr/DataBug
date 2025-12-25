@@ -42,9 +42,9 @@ async def run_scan_pipeline(scan_id: uuid.UUID, repo_url: str, branch: str) -> N
         await sio.emit("scan.updated", {"scan_id": str(scan_id), "status": "scanning"})
 
         languages, scanned_files = fetcher.analyze_repo(repo_path)
-        rulesets = runner.resolve_rulesets(languages)
+        configs = runner.resolve_configs(repo_path, languages)
         semgrep_version = runner.get_version()
-        rulesets_used = rulesets or ["auto"]
+        rulesets_used = runner.format_config_labels(repo_path, configs) or ["auto"]
         _update_scan(
             db,
             scan_id,

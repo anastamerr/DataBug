@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { chatApi } from "../api/chat";
 
@@ -16,6 +18,65 @@ function messageClass(role: ChatMessage["role"]) {
   }
   return "mr-auto border border-white/10 bg-surface text-white";
 }
+
+const markdownComponents = {
+  p: ({ children }: { children?: ReactNode }) => (
+    <p className="text-sm leading-relaxed">{children}</p>
+  ),
+  ul: ({ children }: { children?: ReactNode }) => (
+    <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed">
+      {children}
+    </ul>
+  ),
+  ol: ({ children }: { children?: ReactNode }) => (
+    <ol className="list-decimal space-y-1 pl-5 text-sm leading-relaxed">
+      {children}
+    </ol>
+  ),
+  li: ({ children }: { children?: ReactNode }) => (
+    <li className="text-sm leading-relaxed">{children}</li>
+  ),
+  a: ({
+    children,
+    href,
+  }: {
+    children?: ReactNode;
+    href?: string;
+  }) => (
+    <a
+      href={href}
+      className="underline decoration-white/30 underline-offset-4 hover:decoration-neon-mint/60"
+      target="_blank"
+      rel="noreferrer"
+    >
+      {children}
+    </a>
+  ),
+  code: ({
+    children,
+    className,
+    inline,
+  }: {
+    children?: ReactNode;
+    className?: string;
+    inline?: boolean;
+  }) =>
+    inline ? (
+      <code className="rounded bg-white/10 px-1 font-mono text-xs text-white/90">
+        {children}
+      </code>
+    ) : (
+      <code className={className}>{children}</code>
+    ),
+  pre: ({ children }: { children?: ReactNode }) => (
+    <pre className="mt-2 overflow-auto rounded-card border border-white/10 bg-void p-3 text-xs text-white/80">
+      {children}
+    </pre>
+  ),
+  strong: ({ children }: { children?: ReactNode }) => (
+    <strong className="font-semibold text-white">{children}</strong>
+  ),
+};
 
 export default function Chat() {
   const [searchParams] = useSearchParams();
@@ -119,7 +180,15 @@ export default function Chat() {
                 message.role
               )}`}
             >
-              <div className="whitespace-pre-wrap">{message.content}</div>
+              <div className="space-y-2">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={markdownComponents}
+                  skipHtml
+                >
+                  {message.content}
+                </ReactMarkdown>
+              </div>
 
               {message.role === "assistant" && message.meta?.used_llm === false && (
                 <div className="mt-2 text-xs text-white/60">

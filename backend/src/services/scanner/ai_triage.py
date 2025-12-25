@@ -28,19 +28,29 @@ class AITriageEngine:
         language = self._guess_language(finding.file_path)
         prompt = self._build_prompt(finding, context, language)
         response = await self._call_llm(prompt)
-        data = self._parse_response(response)
+        data, parsed = self._parse_response(response)
 
-        is_false_positive = self._parse_bool(data.get("is_false_positive", False))
+        is_false_positive = (
+            self._parse_bool(data.get("is_false_positive", False)) if parsed else False
+        )
         ai_severity = self._normalize_severity(
             str(data.get("adjusted_severity") or data.get("ai_severity") or ""),
             finding.severity,
         )
-        ai_confidence = self._parse_confidence(data.get("confidence"))
+        ai_confidence = (
+            self._parse_confidence(data.get("confidence")) if parsed else 0.2
+        )
         ai_reasoning = str(data.get("reasoning") or "").strip()
         exploitability = str(data.get("exploitability") or "").strip()
 
+        ai_severity = self._apply_context_adjustments(
+            ai_severity, context, is_false_positive
+        )
+
         if not ai_reasoning:
-            ai_reasoning = "No LLM reasoning provided."
+            ai_reasoning = (
+                "LLM response was unavailable or invalid; fallback to Semgrep severity."
+            )
         if not exploitability:
             exploitability = "Not enough context to determine exploitability."
 
@@ -121,21 +131,29 @@ class AITriageEngine:
             "- Is there input validation elsewhere?\n"
             "- Is this a test file or example code?\n"
             "- Would exploitation require unlikely conditions?\n"
+            "\n"
+            "Severity guidance:\n"
+            "- critical: unauthenticated RCE, auth bypass, or broad data loss\n"
+            "- high: exploitable with auth or scoped data exposure\n"
+            "- medium: limited impact, requires user interaction\n"
+            "- low: hard to exploit, minor impact\n"
+            "- info: test-only, generated code, or non-issue\n"
+            "Do not default to high; pick the lowest realistic severity.\n"
         )
 
-    def _parse_response(self, response: str) -> Dict:
+    def _parse_response(self, response: str) -> tuple[Dict, bool]:
         if not response:
-            return {}
+            return {}, False
         text = response.strip()
         start = text.find("{")
         end = text.rfind("}")
         if start == -1 or end == -1 or end <= start:
-            return {}
+            return {}, False
         payload = text[start : end + 1]
         try:
-            return json.loads(payload)
+            return json.loads(payload), True
         except json.JSONDecodeError:
-            return {}
+            return {}, False
 
     def _guess_language(self, file_path: str) -> str:
         ext = Path(file_path).suffix.lower()
@@ -178,3 +196,15 @@ class AITriageEngine:
         if isinstance(value, (int, float)):
             return value != 0
         return False
+
+    def _apply_context_adjustments(
+        self, severity: str, context: CodeContext, is_false_positive: bool
+    ) -> str:
+        if is_false_positive:
+            return "info"
+        if context.is_test_file or context.is_generated:
+            if severity in {"critical", "high"}:
+                return "low"
+            if severity == "medium":
+                return "low"
+        return severity

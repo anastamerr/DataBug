@@ -87,13 +87,30 @@ class FindingAggregator:
         }
         base = severity_weights.get(finding.ai_severity, 30)
         confidence = finding.ai_confidence or 0.5
-        score = base * (0.6 + 0.4 * max(0.0, min(confidence, 1.0)))
+        score = base * (0.5 + 0.5 * max(0.0, min(confidence, 1.0)))
 
-        exploitability = finding.exploitability.lower()
+        exploitability = (finding.exploitability or "").lower()
         if any(term in exploitability for term in ["not exploitable", "unlikely", "false positive"]):
             score -= 15
         if any(term in exploitability for term in ["remote", "arbitrary", "unauthenticated"]):
             score += 10
+        if any(
+            term in exploitability
+            for term in [
+                "requires authentication",
+                "authenticated",
+                "admin only",
+                "local only",
+                "user interaction",
+            ]
+        ):
+            score -= 10
+
+        if confidence < 0.35:
+            score -= 10
+
+        if finding.is_test_file or finding.is_generated:
+            score -= 25
 
         return max(0, min(100, int(round(score))))
 
