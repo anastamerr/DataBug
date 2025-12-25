@@ -2,9 +2,7 @@ import { api } from "./client";
 
 export type ChatRequest = {
   message: string;
-  incident_id?: string;
   bug_id?: string;
-  correlation_id?: string;
 };
 
 export type ChatResponse = {

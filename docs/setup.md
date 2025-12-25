@@ -51,7 +51,7 @@ ngrok config add-authtoken <YOUR_TOKEN>
 ngrok http 8000
 ```
 
-GitHub repo → **Settings → Webhooks → Add webhook**
+GitHub repo **Settings > Webhooks > Add webhook**
 - Payload URL: `https://<ngrok-host>/api/webhooks/github`
 - Content type: `application/json`
 - Secret: your `GITHUB_WEBHOOK_SECRET`

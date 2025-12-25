@@ -1,52 +1,27 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Bug, Clock, Database } from "lucide-react";
+import { AlertTriangle, Bug, Copy, Flame } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { bugsApi } from "../api/bugs";
-import { incidentsApi } from "../api/incidents";
 import { BugQueue } from "../components/dashboard/BugQueue";
-import { CorrelationGraph } from "../components/dashboard/CorrelationGraph";
-import { IncidentFeed } from "../components/dashboard/IncidentFeed";
 import { StatsCard } from "../components/dashboard/StatsCard";
-import { PredictionAlert } from "../components/predictions/PredictionAlert";
 
 export default function Dashboard() {
-  const { data: incidents } = useQuery({
-    queryKey: ["incidents"],
-    queryFn: () => incidentsApi.getAll(),
-  });
   const { data: bugs } = useQuery({
     queryKey: ["bugs"],
     queryFn: () => bugsApi.getAll(),
   });
 
-  const activeIncidents =
-    incidents?.filter((incident) => incident.status === "ACTIVE").length || 0;
-  const unresolvedBugs =
-    bugs?.filter((bug) => bug.status !== "resolved").length || 0;
-  const dataRelatedBugs = bugs?.filter((bug) => bug.is_data_related).length || 0;
-  const correlationRate = bugs?.length ? (dataRelatedBugs / bugs.length) * 100 : 0;
-
-  const avgMinutesToImpact = (() => {
-    if (!incidents?.length || !bugs?.length) return null;
-    const byIncident = new Map(incidents.map((incident) => [incident.id, incident]));
-    const deltas = bugs
-      .filter((bug) => bug.correlated_incident_id)
-      .map((bug) => {
-        const incident = byIncident.get(bug.correlated_incident_id as string);
-        if (!incident) return null;
-        const ms =
-          new Date(bug.created_at).getTime() -
-          new Date(incident.timestamp).getTime();
-        if (!Number.isFinite(ms) || ms < 0) return null;
-        return ms / 60000;
-      })
-      .filter((value): value is number => typeof value === "number");
-
-    if (!deltas.length) return null;
-    const avg = deltas.reduce((a, b) => a + b, 0) / deltas.length;
-    return Math.round(avg);
-  })();
+  const bugList = bugs ?? [];
+  const openBugs = bugList.filter((bug) => bug.status !== "resolved");
+  const newBugs = bugList.filter((bug) => bug.status === "new");
+  const highSeverityBugs = bugList.filter(
+    (bug) => bug.classified_severity === "critical" || bug.classified_severity === "high"
+  );
+  const duplicateBugs = bugList.filter((bug) => bug.is_duplicate);
+  const duplicateRate = bugList.length
+    ? Math.round((duplicateBugs.length / bugList.length) * 100)
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -65,14 +40,13 @@ export default function Dashboard() {
               Dashboard
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-white/60">
-              Monitor data incidents, correlate downstream bugs, and ship faster
-              with predictive intelligence.
+              Prioritize, de-duplicate, and route bugs faster with AI-assisted triage.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Link to="/incidents" className="btn-ghost">
-              View Incidents
+            <Link to="/bugs" className="btn-ghost">
+              View Bugs
             </Link>
             <Link to="/chat" className="btn-primary">
               Ask DataBug
@@ -83,41 +57,36 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <StatsCard
-          title="Active Incidents"
-          value={activeIncidents}
-          icon={<AlertTriangle className="h-4 w-4 text-neon-mint" />}
-        />
-        <StatsCard
-          title="Bug Queue"
-          value={unresolvedBugs}
+          title="Open Bugs"
+          value={openBugs.length}
           icon={<Bug className="h-4 w-4 text-neon-mint" />}
         />
         <StatsCard
-          title="Data-Related Bugs"
-          value={`${correlationRate.toFixed(0)}%`}
-          subtitle={`${dataRelatedBugs} of ${bugs?.length || 0}`}
-          icon={<Database className="h-4 w-4 text-neon-mint" />}
+          title="New Bugs"
+          value={newBugs.length}
+          icon={<AlertTriangle className="h-4 w-4 text-neon-mint" />}
         />
         <StatsCard
-          title="Avg Time to Root Cause"
-          value={avgMinutesToImpact !== null ? `${avgMinutesToImpact} min` : "—"}
-          subtitle={
-            avgMinutesToImpact !== null
-              ? "Avg time from incident to bug"
-              : "Need correlated history"
-          }
-          icon={<Clock className="h-4 w-4 text-neon-mint" />}
+          title="High Severity"
+          value={highSeverityBugs.length}
+          subtitle="critical + high"
+          icon={<Flame className="h-4 w-4 text-neon-mint" />}
+        />
+        <StatsCard
+          title="Duplicate Rate"
+          value={`${duplicateRate}%`}
+          subtitle={`${duplicateBugs.length} duplicates`}
+          icon={<Copy className="h-4 w-4 text-neon-mint" />}
         />
       </div>
 
-      <PredictionAlert />
-
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <div className="space-y-6">
-          <IncidentFeed incidents={incidents?.slice(0, 5) || []} />
-          <BugQueue bugs={bugs?.filter((bug) => bug.status === "new").slice(0, 5) || []} />
-        </div>
-        <CorrelationGraph />
+        <BugQueue title="New Bugs" emptyLabel="No new bugs." bugs={newBugs.slice(0, 5)} />
+        <BugQueue
+          title="High Priority"
+          emptyLabel="No high-severity bugs."
+          bugs={highSeverityBugs.slice(0, 5)}
+        />
       </div>
     </div>
   );

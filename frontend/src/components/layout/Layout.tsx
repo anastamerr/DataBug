@@ -4,10 +4,7 @@ import { RealtimeListener } from "../realtime/RealtimeListener";
 
 const navItems = [
   { to: "/", label: "Dashboard", end: true },
-  { to: "/incidents", label: "Incidents" },
   { to: "/bugs", label: "Bugs" },
-  { to: "/correlations", label: "Correlations" },
-  { to: "/predictions", label: "Predictions" },
   { to: "/chat", label: "Chat" },
   { to: "/settings", label: "Settings" },
 ];
@@ -46,7 +43,7 @@ export function Layout() {
                 Neon Ops Console
               </div>
               <div className="mt-1 text-sm text-white/60">
-                Monitor, correlate, and predict bugs from data incidents.
+                Automate bug triage with intelligent routing and deduping.
               </div>
             </div>
             <div className="h-10 w-10 rounded-card border border-white/10 bg-white/5" />

@@ -59,8 +59,8 @@ export default function Chat() {
       <div className="surface-solid p-6">
         <h1 className="text-2xl font-extrabold tracking-tight text-white">Chat</h1>
         <p className="mt-1 text-sm text-white/60">
-          Ask DataBug AI about incidents, bugs, correlations, and predictions. The
-          assistant is grounded in your latest platform data.
+          Ask DataBug AI about bugs, duplicates, and triage recommendations. The
+          assistant is grounded in your latest bug data.
         </p>
       </div>
 
@@ -68,7 +68,7 @@ export default function Chat() {
         <div className="space-y-3">
           {messages.length === 0 && (
             <div className="text-sm text-white/60">
-              Try: “Explain the likely root cause of the latest incident.”
+              Try: "Summarize the latest high-severity bugs."
             </div>
           )}
 

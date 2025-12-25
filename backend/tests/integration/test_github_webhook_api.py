@@ -32,7 +32,7 @@ def test_github_issues_webhook_creates_bug(db_sessionmaker, monkeypatch):
             }
 
     class DummyRouter:
-        def route_bug(self, classification, is_data_related=False, correlation_score=None):
+        def route_bug(self, classification):
             return {"team": "backend_team"}
 
     monkeypatch.setattr(
@@ -114,7 +114,7 @@ def test_github_issue_comment_webhook_updates_bug_labels(db_sessionmaker, monkey
             }
 
     class DummyRouter:
-        def route_bug(self, classification, is_data_related=False, correlation_score=None):
+        def route_bug(self, classification):
             return {"team": "backend_team"}
 
     monkeypatch.setattr(

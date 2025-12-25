@@ -17,7 +17,6 @@ from ...integrations.github_webhook import (
 )
 from ...realtime import sio
 from ...schemas.bug import BugReportRead
-from ...schemas.correlation import CorrelationRead
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -67,12 +66,11 @@ async def github_webhook(
             return {"ok": True, "ignored": True, "reason": "missing_repo"}
 
         ingestor = get_ingestor()
-        bug, created, corr, _incident = ingestor.upsert_issue(
+        bug, created = ingestor.upsert_issue(
             db,
             repo_full_name=repo_full_name,
             issue=issue,
             action=action,
-            auto_correlate=True,
         )
 
         bug_event = BugReportRead.model_validate(bug).model_dump(mode="json")
@@ -81,10 +79,6 @@ async def github_webhook(
             "bug.created" if created else "bug.updated",
             bug_event,
         )
-        if corr is not None:
-            corr_event = CorrelationRead.model_validate(corr).model_dump(mode="json")
-            background_tasks.add_task(sio.emit, "correlation.created", corr_event)
-
         return {"ok": True}
 
     if event == "issue_comment":
@@ -99,13 +93,12 @@ async def github_webhook(
             return {"ok": True, "ignored": True, "reason": "missing_repo"}
 
         ingestor = get_ingestor()
-        bug, created, corr, _incident = ingestor.upsert_issue_comment(
+        bug, created = ingestor.upsert_issue_comment(
             db,
             repo_full_name=repo_full_name,
             issue=issue,
             comment=comment,
             action=action,
-            auto_correlate=True,
         )
 
         bug_event = BugReportRead.model_validate(bug).model_dump(mode="json")
@@ -114,10 +107,6 @@ async def github_webhook(
             "bug.created" if created else "bug.updated",
             bug_event,
         )
-        if corr is not None:
-            corr_event = CorrelationRead.model_validate(corr).model_dump(mode="json")
-            background_tasks.add_task(sio.emit, "correlation.created", corr_event)
-
         return {"ok": True}
 
     return {"ok": True, "ignored": True, "event": event}

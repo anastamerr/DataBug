@@ -32,7 +32,7 @@ Reference template: `backend/.env.example` (or `.env.example`)
 
 From `backend/`:
 
-- If your network can’t resolve `db.<ref>.supabase.co` (IPv6-only), use the Supabase **Session Pooler** connection string.
+- If your network can't resolve `db.<ref>.supabase.co` (IPv6-only), use the Supabase **Session Pooler** connection string.
 - Optional: set `ALEMBIC_DATABASE_URL` (Session Pooler) while keeping `DATABASE_URL` for runtime.
 
 ```powershell
@@ -101,7 +101,7 @@ This will update any existing `ngrok-free.app` webhook URL to:
 `https://<current-ngrok-host>/api/webhooks/github`
 and trigger a GitHub ping for verification.
 
-In your GitHub repo settings → Webhooks:
+In your GitHub repo settings > Webhooks:
 - Payload URL: `https://<ngrok-host>/api/webhooks/github`
 - Content type: `application/json`
 - Secret: your `GITHUB_WEBHOOK_SECRET`
@@ -118,7 +118,6 @@ cd backend
 
 - Backend health: `GET /api/health`
 - Bugs list: `GET /api/bugs`
-- Predictions: `GET /api/predictions`
 - Chat: `POST /api/chat` (uses OpenRouter if `OPEN_ROUTER_API_KEY` is set)
 
 ## Troubleshooting

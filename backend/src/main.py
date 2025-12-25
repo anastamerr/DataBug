@@ -5,10 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import socketio
 
 from .api.routes.health import router as health_router
-from .api.routes.incidents import router as incidents_router
 from .api.routes.bugs import router as bugs_router
-from .api.routes.correlations import router as correlations_router
-from .api.routes.predictions import router as predictions_router
 from .api.routes.chat import router as chat_router
 from .api.routes.demo import router as demo_router
 from .api.routes.webhooks import router as webhooks_router
@@ -29,10 +26,7 @@ app.add_middleware(
 )
 
 app.include_router(health_router, prefix=settings.api_prefix)
-app.include_router(incidents_router, prefix=settings.api_prefix)
 app.include_router(bugs_router, prefix=settings.api_prefix)
-app.include_router(correlations_router, prefix=settings.api_prefix)
-app.include_router(predictions_router, prefix=settings.api_prefix)
 app.include_router(chat_router, prefix=settings.api_prefix)
 app.include_router(demo_router, prefix=settings.api_prefix)
 app.include_router(webhooks_router, prefix=settings.api_prefix)
