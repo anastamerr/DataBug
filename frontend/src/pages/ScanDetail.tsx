@@ -50,11 +50,13 @@ export default function ScanDetail() {
   const queryClient = useQueryClient();
   const [includeFalsePositives, setIncludeFalsePositives] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [updateError, setUpdateError] = useState<string | null>(null);
 
   const {
     data: scan,
     isLoading,
-    error,
+    error: scanError,
+    refetch: refetchScan,
   } = useQuery({
     queryKey: ["scans", id],
     queryFn: () => scansApi.getById(id as string),
@@ -64,6 +66,8 @@ export default function ScanDetail() {
   const {
     data: findings,
     isLoading: findingsLoading,
+    error: findingsError,
+    refetch: refetchFindings,
   } = useQuery({
     queryKey: ["findings", id, includeFalsePositives],
     queryFn: () =>
@@ -80,6 +84,12 @@ export default function ScanDetail() {
     }) => scansApi.updateFinding(payload.id, { status: payload.status }),
     onMutate: ({ id: findingId }) => {
       setUpdatingId(findingId);
+      setUpdateError(null);
+    },
+    onError: (err) => {
+      setUpdateError(
+        err instanceof Error ? err.message : "Failed to update finding status."
+      );
     },
     onSettled: async () => {
       setUpdatingId(null);
@@ -94,6 +104,29 @@ export default function ScanDetail() {
     const pct = Math.round(Math.max(0, Math.min(1, ratio)) * 100);
     return { total, filtered, pct };
   }, [scan]);
+
+  const progressSteps: Scan["status"][] = [
+    "pending",
+    "cloning",
+    "scanning",
+    "analyzing",
+    "completed",
+  ];
+  const progressIndex = scan ? progressSteps.indexOf(scan.status) : -1;
+  const progressPercent =
+    progressIndex >= 0
+      ? Math.round((progressIndex / (progressSteps.length - 1)) * 100)
+      : 0;
+  const showProgress = scan
+    ? ["pending", "cloning", "scanning", "analyzing"].includes(scan.status)
+    : false;
+  const progressWidth = showProgress ? Math.max(5, progressPercent) : 0;
+  const scanErrorMessage =
+    scanError instanceof Error ? scanError.message : "Unable to load scan.";
+  const findingsErrorMessage =
+    findingsError instanceof Error
+      ? findingsError.message
+      : "Unable to load findings.";
 
   if (!id) {
     return (
@@ -111,17 +144,71 @@ export default function ScanDetail() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="surface-solid p-6">
-          <h1 className="text-2xl font-extrabold tracking-tight text-white">
-            Scan
-          </h1>
-          <p className="mt-1 text-sm text-white/60">Loading...</p>
+        <div className="surface-solid animate-pulse p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="h-5 w-16 rounded-pill bg-white/10" />
+                <div className="h-5 w-12 rounded-pill bg-white/5" />
+                <div className="h-5 w-20 rounded-pill bg-white/10" />
+                <div className="h-5 w-28 rounded-pill bg-white/10" />
+              </div>
+              <div className="h-6 w-80 rounded-pill bg-white/10" />
+              <div className="h-3 w-48 rounded-pill bg-white/5" />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="h-9 w-20 rounded-pill bg-white/10" />
+              <div className="h-9 w-20 rounded-pill bg-white/10" />
+              <div className="h-9 w-16 rounded-pill bg-white/5" />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div
+              key={`scan-stat-skeleton-${index}`}
+              className="surface-solid animate-pulse p-5"
+            >
+              <div className="h-3 w-28 rounded-pill bg-white/5" />
+              <div className="mt-3 h-6 w-16 rounded-pill bg-white/10" />
+            </div>
+          ))}
+        </div>
+
+        <div className="surface-solid animate-pulse p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-2">
+              <div className="h-4 w-24 rounded-pill bg-white/10" />
+              <div className="h-3 w-44 rounded-pill bg-white/5" />
+            </div>
+            <div className="h-4 w-36 rounded-pill bg-white/10" />
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {Array.from({ length: 2 }).map((_, index) => (
+            <div
+              key={`finding-skeleton-${index}`}
+              className="surface-solid animate-pulse p-5"
+            >
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="h-5 w-20 rounded-pill bg-white/10" />
+                  <div className="h-5 w-16 rounded-pill bg-white/10" />
+                  <div className="h-5 w-16 rounded-pill bg-white/5" />
+                </div>
+                <div className="h-4 w-64 rounded-pill bg-white/10" />
+                <div className="h-3 w-40 rounded-pill bg-white/5" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
   }
 
-  if (error || !scan) {
+  if (scanError || !scan) {
     return (
       <div className="space-y-6">
         <div className="surface-solid p-6">
@@ -130,11 +217,24 @@ export default function ScanDetail() {
               <h1 className="text-2xl font-extrabold tracking-tight text-white">
                 Scan
               </h1>
-              <p className="mt-1 text-sm text-white/60">Scan not found.</p>
+              <p className="mt-1 text-sm text-white/60">
+                {scanError ? scanErrorMessage : "Scan not found."}
+              </p>
             </div>
-            <Link to="/scans" className="btn-ghost">
-              Back to Scans
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              {scanError ? (
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => refetchScan()}
+                >
+                  Retry
+                </button>
+              ) : null}
+              <Link to="/scans" className="btn-ghost">
+                Back to Scans
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -199,6 +299,20 @@ export default function ScanDetail() {
         {scan.error_message ? (
           <div className="mt-4 text-sm text-rose-200">{scan.error_message}</div>
         ) : null}
+        {showProgress ? (
+          <div className="mt-4">
+            <div className="flex items-center justify-between text-xs text-white/60">
+              <span>Progress</span>
+              <span className="capitalize">{scan.status}</span>
+            </div>
+            <div className="mt-2 h-2 w-full rounded-pill bg-white/10">
+              <div
+                className="h-2 rounded-pill bg-neon-mint"
+                style={{ width: `${progressWidth}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -248,8 +362,44 @@ export default function ScanDetail() {
         </div>
       </div>
 
+      {updateError ? (
+        <div className="surface-solid p-4 text-sm text-rose-200">
+          {updateError}
+        </div>
+      ) : null}
+
+      {findingsError ? (
+        <div className="surface-solid p-4 text-sm text-rose-200">
+          <div>{findingsErrorMessage}</div>
+          <button
+            type="button"
+            className="btn-ghost mt-3"
+            onClick={() => refetchFindings()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
       {findingsLoading ? (
-        <div className="text-sm text-white/60">Loading findings...</div>
+        <div className="space-y-4">
+          {Array.from({ length: 2 }).map((_, index) => (
+            <div
+              key={`finding-loading-${index}`}
+              className="surface-solid animate-pulse p-5"
+            >
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="h-5 w-20 rounded-pill bg-white/10" />
+                  <div className="h-5 w-16 rounded-pill bg-white/10" />
+                  <div className="h-5 w-16 rounded-pill bg-white/5" />
+                </div>
+                <div className="h-4 w-64 rounded-pill bg-white/10" />
+                <div className="h-3 w-40 rounded-pill bg-white/5" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : null}
 
       <div className="space-y-4">
@@ -264,7 +414,7 @@ export default function ScanDetail() {
           />
         ))}
 
-        {!findingsLoading && (findings || []).length === 0 ? (
+        {!findingsLoading && !findingsError && (findings || []).length === 0 ? (
           <div className="surface-solid p-6 text-sm text-white/60">
             {scan.status === "completed"
               ? "No findings for this scan."

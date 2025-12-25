@@ -34,13 +34,6 @@ app.include_router(scans_router, prefix=settings.api_prefix)
 app.include_router(findings_router, prefix=settings.api_prefix)
 app.include_router(webhooks_router, prefix=settings.api_prefix)
 
-asgi_app = socketio.ASGIApp(
-    sio,
-    other_asgi_app=app,
-    socketio_path="ws",
-)
-
-
 @app.get("/")
 async def root() -> dict:
     return {"name": "ScanGuard AI", "status": "ok"}
@@ -54,3 +47,25 @@ async def maybe_backfill_github() -> None:
         await asyncio.to_thread(backfill_github_issues)
     except Exception as exc:  # pragma: no cover
         print(f"[github_backfill] skipped: {type(exc).__name__}: {exc}")
+
+
+asgi_app = socketio.ASGIApp(
+    sio,
+    other_asgi_app=app,
+    socketio_path="ws",
+)
+
+
+class _CombinedApp:
+    def __init__(self, fastapi_app: FastAPI, socketio_app: socketio.ASGIApp) -> None:
+        self._fastapi_app = fastapi_app
+        self._socketio_app = socketio_app
+
+    async def __call__(self, scope, receive, send):
+        await self._socketio_app(scope, receive, send)
+
+    def __getattr__(self, name: str):
+        return getattr(self._fastapi_app, name)
+
+
+app = _CombinedApp(app, asgi_app)

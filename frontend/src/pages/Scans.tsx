@@ -63,7 +63,7 @@ export default function Scans() {
   const [branch, setBranch] = useState("main");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["scans"],
     queryFn: () => scansApi.list(),
   });
@@ -100,6 +100,9 @@ export default function Scans() {
     ).length;
     return { total: scans.length, completed, active };
   }, [scans]);
+
+  const listErrorMessage =
+    error instanceof Error ? error.message : "Unable to load scans.";
 
   return (
     <div className="space-y-6">
@@ -157,8 +160,38 @@ export default function Scans() {
         ) : null}
       </div>
 
+      {error ? (
+        <div className="surface-solid p-4 text-sm text-rose-200">
+          {listErrorMessage}
+        </div>
+      ) : null}
+
       {isLoading ? (
-        <div className="text-sm text-white/60">Loading scans...</div>
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div
+              key={`scan-skeleton-${index}`}
+              className="surface-solid animate-pulse p-5"
+            >
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="h-5 w-16 rounded-pill bg-white/10" />
+                    <div className="h-5 w-12 rounded-pill bg-white/5" />
+                    <div className="h-5 w-20 rounded-pill bg-white/10" />
+                    <div className="h-5 w-28 rounded-pill bg-white/10" />
+                  </div>
+                  <div className="h-5 w-52 rounded-pill bg-white/10" />
+                  <div className="h-3 w-72 rounded-pill bg-white/5" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-3 w-20 rounded-pill bg-white/5" />
+                  <div className="h-9 w-16 rounded-pill bg-white/10" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       ) : null}
 
       <div className="space-y-4">
@@ -204,7 +237,7 @@ export default function Scans() {
           </div>
         ))}
 
-        {scans.length === 0 && !isLoading ? (
+        {scans.length === 0 && !isLoading && !error ? (
           <div className="surface-solid p-6 text-sm text-white/60">
             No scans yet. Trigger your first repository scan above.
           </div>

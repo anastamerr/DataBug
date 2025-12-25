@@ -274,10 +274,10 @@ The repo already has a working bug triage system:
 | Run migrations | Terminal | `alembic revision --autogenerate && alembic upgrade head` |
 
 **Acceptance Criteria**:
-- [ ] `Scan` model has: id, repo_url, branch, status, total_findings, filtered_findings
-- [ ] `Finding` model has: id, scan_id, rule_id, semgrep_severity, ai_severity, is_false_positive, ai_reasoning
-- [ ] Models linked via foreign key (Finding → Scan)
-- [ ] Database migrations run without errors
+- [x] `Scan` model has: id, repo_url, branch, status, total_findings, filtered_findings
+- [x] `Finding` model has: id, scan_id, rule_id, semgrep_severity, ai_severity, is_false_positive, ai_reasoning
+- [x] Models linked via foreign key (Finding → Scan)
+- [x] Database migrations run without errors
 
 ---
 
@@ -303,11 +303,11 @@ class RepoFetcher:
 ```
 
 **Acceptance Criteria**:
-- [ ] Can clone public GitHub repos
-- [ ] Can clone private repos (with GITHUB_TOKEN)
-- [ ] Detects languages: Python (.py), JavaScript (.js/.ts), Go (.go)
-- [ ] Cleans up temp directories after use
-- [ ] Handles clone failures gracefully
+- [x] Can clone public GitHub repos
+- [x] Can clone private repos (with GITHUB_TOKEN)
+- [x] Detects languages: Python (.py), JavaScript (.js/.ts), Go (.go)
+- [x] Cleans up temp directories after use
+- [x] Handles clone failures gracefully
 
 ---
 
@@ -344,10 +344,10 @@ class RawFinding:
 ```
 
 **Acceptance Criteria**:
-- [ ] Runs `semgrep --config=auto --json` on repo
-- [ ] Parses all findings from JSON output
-- [ ] Handles Semgrep errors (not installed, timeout, etc.)
-- [ ] Returns structured RawFinding objects
+- [x] Runs `semgrep --config=auto --json` on repo
+- [x] Parses all findings from JSON output
+- [x] Handles Semgrep errors (not installed, timeout, etc.)
+- [x] Returns structured RawFinding objects
 
 ---
 
@@ -383,11 +383,11 @@ class CodeContext:
 ```
 
 **Acceptance Criteria**:
-- [ ] Extracts 20 lines before and after finding
-- [ ] Identifies containing function/method name
-- [ ] Detects test files (test_, _test, __tests__)
-- [ ] Detects generated files (auto-generated comments)
-- [ ] Handles edge cases (start/end of file)
+- [x] Extracts 20 lines before and after finding
+- [x] Identifies containing function/method name
+- [x] Detects test files (test_, _test, __tests__)
+- [x] Detects generated files (auto-generated comments)
+- [x] Handles edge cases (start/end of file)
 
 ---
 
@@ -459,11 +459,11 @@ class TriagedFinding:
 ```
 
 **Acceptance Criteria**:
-- [ ] Sends finding + context to LLM
-- [ ] Parses JSON response correctly
-- [ ] Handles LLM errors/timeouts gracefully
-- [ ] Rate limits API calls (avoid quota issues)
-- [ ] Uses existing LLM service (OpenRouter/Ollama)
+- [x] Sends finding + context to LLM
+- [x] Parses JSON response correctly
+- [x] Handles LLM errors/timeouts gracefully
+- [x] Rate limits API calls (avoid quota issues)
+- [x] Uses existing LLM service (OpenRouter/Ollama)
 
 ---
 
@@ -494,11 +494,11 @@ class FindingAggregator:
 ```
 
 **Acceptance Criteria**:
-- [ ] Filters out is_false_positive=True findings
-- [ ] Groups findings with same rule_id in same file
-- [ ] Uses Pinecone for semantic deduplication
-- [ ] Ranks by priority score (critical+high confidence = top)
-- [ ] Returns sorted list ready for display
+- [x] Filters out is_false_positive=True findings
+- [x] Groups findings with same rule_id in same file
+- [x] Uses Pinecone for semantic deduplication
+- [x] Ranks by priority score (critical+high confidence = top)
+- [x] Returns sorted list ready for display
 
 ---
 
@@ -549,12 +549,12 @@ async def run_scan_pipeline(scan_id: UUID, repo_url: str, branch: str):
 ```
 
 **Acceptance Criteria**:
-- [ ] POST /scans triggers background scan
-- [ ] GET /scans returns list with stats
-- [ ] GET /scans/{id}/findings returns filtered findings
-- [ ] PATCH /findings/{id} updates status
-- [ ] Socket.IO emits scan progress events
-- [ ] Handles errors and updates scan status to "failed"
+- [x] POST /scans triggers background scan
+- [x] GET /scans returns list with stats
+- [x] GET /scans/{id}/findings returns filtered findings
+- [x] PATCH /findings/{id} updates status
+- [x] Socket.IO emits scan progress events
+- [x] Handles errors and updates scan status to "failed"
 
 ---
 
@@ -589,12 +589,12 @@ async def run_scan_pipeline(scan_id: UUID, repo_url: str, branch: str):
   - Confirm/Dismiss buttons
 
 **Acceptance Criteria**:
-- [ ] Can trigger scan from UI
-- [ ] Shows real-time scan progress (via Socket.IO)
-- [ ] Displays findings with AI severity comparison
-- [ ] Can expand to see AI reasoning
-- [ ] Can confirm/dismiss findings
-- [ ] Responsive design (mobile-friendly)
+- [x] Can trigger scan from UI
+- [x] Shows real-time scan progress (via Socket.IO)
+- [x] Displays findings with AI severity comparison
+- [x] Can expand to see AI reasoning
+- [x] Can confirm/dismiss findings
+- [x] Responsive design (mobile-friendly)
 
 ---
 
@@ -622,11 +622,11 @@ if event_type == "pull_request":
 ```
 
 **Acceptance Criteria**:
-- [ ] Push to any branch triggers scan
-- [ ] PR open/update triggers scan
-- [ ] Respects repository allowlist
-- [ ] Stores PR reference for result linking
-- [ ] Rate limits (1 scan per repo per minute)
+- [x] Push to any branch triggers scan
+- [x] PR open/update triggers scan
+- [x] Respects repository allowlist
+- [x] Stores PR reference for result linking
+- [x] Rate limits (1 scan per repo per minute)
 
 ---
 
