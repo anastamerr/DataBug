@@ -66,9 +66,9 @@ export default function ScanDetail() {
     queryKey: ["scans", id],
     queryFn: () => scansApi.getById(id as string),
     enabled: Boolean(id),
-    refetchInterval: (data) =>
-      data &&
-      ["pending", "cloning", "scanning", "analyzing"].includes(data.status)
+    refetchInterval: (query) =>
+      query.state.data &&
+      ["pending", "cloning", "scanning", "analyzing"].includes(query.state.data.status)
         ? 8000
         : false,
   });
