@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ...db.session import SessionLocal
 from ...integrations.pinecone_client import PineconeService
-from ...models import Finding, Scan
+from ...models import Finding, Scan, UserSettings
 from ...realtime import sio
 from .ai_triage import AITriageEngine
 from .context_extractor import ContextExtractor
@@ -27,10 +27,25 @@ async def run_scan_pipeline(scan_id: uuid.UUID, repo_url: str, branch: str) -> N
     aggregator = FindingAggregator(pinecone)
 
     try:
+        scan = db.query(Scan).filter(Scan.id == scan_id).first()
+        github_token = None
+        if scan and scan.user_id:
+            settings = (
+                db.query(UserSettings)
+                .filter(UserSettings.user_id == scan.user_id)
+                .first()
+            )
+            if settings and settings.github_token:
+                github_token = settings.github_token
+
         _update_scan(db, scan_id, status="cloning")
         await sio.emit("scan.updated", {"scan_id": str(scan_id), "status": "cloning"})
 
-        repo_path, resolved_branch = await fetcher.clone(repo_url, branch=branch)
+        repo_path, resolved_branch = await fetcher.clone(
+            repo_url,
+            branch=branch,
+            github_token=github_token,
+        )
         if resolved_branch != branch:
             branch = resolved_branch
             _update_scan(db, scan_id, branch=resolved_branch)
