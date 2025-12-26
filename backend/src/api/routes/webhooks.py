@@ -112,7 +112,12 @@ async def github_webhook(
             )
             scan_ids.append(str(scan.id))
             background_tasks.add_task(
-                run_scan_pipeline, scan.id, scan.repo_url, scan.branch
+                run_scan_pipeline,
+                scan.id,
+                scan.repo_url,
+                scan.branch,
+                scan.scan_type,
+                scan.target_url,
             )
             background_tasks.add_task(
                 sio.emit,
@@ -155,7 +160,12 @@ async def github_webhook(
             )
             scan_ids.append(str(scan.id))
             background_tasks.add_task(
-                run_scan_pipeline, scan.id, scan.repo_url, scan.branch
+                run_scan_pipeline,
+                scan.id,
+                scan.repo_url,
+                scan.branch,
+                scan.scan_type,
+                scan.target_url,
             )
             background_tasks.add_task(
                 sio.emit,
@@ -242,10 +252,13 @@ def _create_scan(
         repo_id=repo_id,
         repo_url=repo_url,
         branch=branch,
+        scan_type="sast",
+        target_url=None,
         status="pending",
         trigger=trigger,
         total_findings=0,
         filtered_findings=0,
+        dast_findings=0,
         pr_number=pr_number,
         pr_url=pr_url,
         commit_sha=commit_sha,

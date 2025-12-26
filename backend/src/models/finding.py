@@ -35,6 +35,11 @@ class Finding(Base):
         Enum("ERROR", "WARNING", "INFO", name="semgrep_severity"),
         nullable=False,
     )
+    finding_type = Column(
+        Enum("sast", "dast", name="finding_type"),
+        nullable=False,
+        default="sast",
+    )
     ai_severity = Column(
         Enum("critical", "high", "medium", "low", "info", name="ai_severity"),
         nullable=True,
@@ -54,6 +59,15 @@ class Finding(Base):
     is_test_file = Column(Boolean, nullable=False, default=False)
     is_generated = Column(Boolean, nullable=False, default=False)
     imports = Column(JSON, nullable=True)
+    matched_at = Column(String, nullable=True)
+    endpoint = Column(String, nullable=True)
+    curl_command = Column(Text, nullable=True)
+    evidence = Column(JSON, nullable=True)
+    description = Column(Text, nullable=True)
+    remediation = Column(Text, nullable=True)
+    cve_ids = Column(JSON, nullable=True)
+    cwe_ids = Column(JSON, nullable=True)
+    confirmed_exploitable = Column(Boolean, nullable=False, default=False)
 
     status = Column(
         Enum("new", "confirmed", "dismissed", name="finding_status"),

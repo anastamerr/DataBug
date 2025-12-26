@@ -112,6 +112,9 @@ class FindingAggregator:
         if finding.is_test_file or finding.is_generated:
             score -= 25
 
+        if getattr(finding, "confirmed_exploitable", False):
+            score += 15
+
         return max(0, min(100, int(round(score))))
 
     def _calculate_priority(self, finding: TriagedFinding) -> int:

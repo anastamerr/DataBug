@@ -38,7 +38,9 @@ def test_create_scan_creates_record(db_sessionmaker, monkeypatch):
 
     called: List[Tuple[str, str, str]] = []
 
-    async def fake_run_scan_pipeline(scan_id, repo_url, branch):  # noqa: ANN001
+    async def fake_run_scan_pipeline(  # noqa: ANN001
+        scan_id, repo_url, branch, scan_type="sast", target_url=None
+    ):
         called.append((str(scan_id), repo_url, branch))
 
     monkeypatch.setattr(scans_routes, "run_scan_pipeline", fake_run_scan_pipeline)

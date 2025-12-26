@@ -126,6 +126,8 @@ class AITriageEngine:
             '  "reasoning": "Brief explanation",\n'
             '  "exploitability": "How it could be exploited, or why not"\n'
             "}\n\n"
+            "Return only valid JSON (no markdown or extra text).\n"
+            "Use concrete details from the snippet (variables, functions, data flow).\n"
             "Consider:\n"
             "- Is the vulnerable code actually reachable?\n"
             "- Is there input validation elsewhere?\n"

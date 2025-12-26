@@ -39,6 +39,10 @@ class Settings(BaseSettings):
 
     supabase_jwt_secret: Optional[str] = None
     supabase_jwt_issuer: Optional[str] = None
+    nuclei_templates_path: Optional[str] = None
+    nuclei_timeout_seconds: int = 300
+    nuclei_rate_limit: Optional[int] = None
+    nuclei_severities: Optional[str] = None
 
     if SettingsConfigDict is not None:
         _ENV_FILE = Path(__file__).resolve().parents[1] / ".env"

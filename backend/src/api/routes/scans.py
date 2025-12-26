@@ -48,24 +48,32 @@ async def create_scan(
 
     if repo_url:
         repo_url = _normalize_repo_url(repo_url)
-    if not repo_url:
-        raise HTTPException(status_code=400, detail="Repository URL is required")
 
     scan = Scan(
         user_id=current_user.id,
         repo_id=repo_id,
         repo_url=repo_url,
         branch=branch,
+        scan_type=payload.scan_type.value,
+        target_url=payload.target_url,
         status="pending",
         trigger="manual",
         total_findings=0,
         filtered_findings=0,
+        dast_findings=0,
     )
     db.add(scan)
     db.commit()
     db.refresh(scan)
 
-    background_tasks.add_task(run_scan_pipeline, scan.id, scan.repo_url, scan.branch)
+    background_tasks.add_task(
+        run_scan_pipeline,
+        scan.id,
+        scan.repo_url,
+        scan.branch,
+        scan.scan_type,
+        scan.target_url,
+    )
     background_tasks.add_task(
         sio.emit,
         "scan.created",
