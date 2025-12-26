@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { API_BASE, api } from "./client";
 
 export type ChatRequest = {
   message: string;
@@ -17,6 +17,17 @@ export const chatApi = {
   send: async (payload: ChatRequest) => {
     const { data } = await api.post<ChatResponse>("/api/chat", payload);
     return data;
+  },
+  stream: async (
+    payload: ChatRequest,
+    signal?: AbortSignal,
+  ): Promise<Response> => {
+    return fetch(`${API_BASE}/api/chat/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    });
   },
 };
 

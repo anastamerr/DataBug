@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import json
 from pathlib import Path
-from typing import Optional
+from typing import AsyncGenerator, Optional
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+import httpx
 from sqlalchemy.orm import Session
 
 from ...api.deps import get_db
@@ -13,7 +16,11 @@ from ...config import get_settings
 from ...integrations.pinecone_client import PineconeService
 from ...models import BugReport, Finding, Scan
 from ...schemas.chat import ChatRequest, ChatResponse
-from ...services.intelligence.llm_service import get_llm_service
+from ...services.intelligence.llm_service import (
+    OllamaService,
+    OpenRouterService,
+    get_llm_service,
+)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -287,8 +294,10 @@ def _build_focus_context(
     return "\n\n".join(part for part in parts if part).strip()
 
 
-@router.post("", response_model=ChatResponse)
-async def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
+def _prepare_chat_prompt(
+    payload: ChatRequest,
+    db: Session,
+) -> tuple[str, str, str, bool]:
     bug: BugReport | None = None
     scan: Scan | None = None
     finding: Finding | None = None
@@ -309,7 +318,9 @@ async def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatRespo
             raise HTTPException(status_code=404, detail="Scan not found")
 
     if payload.finding_id is not None and finding is None:
-        finding = db.query(Finding).filter(Finding.id == payload.finding_id).first()
+        finding = (
+            db.query(Finding).filter(Finding.id == payload.finding_id).first()
+        )
         if not finding:
             raise HTTPException(status_code=404, detail="Finding not found")
 
@@ -430,6 +441,162 @@ async def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatRespo
             "5) Prioritization (top 3 findings/bugs from the queue, if relevant)\n"
             "Rank items individually based on exploitability and context.\n"
         )
+
+    return context, system, prompt, focus_mode
+
+
+def _sse_format(message: str) -> str:
+    if message == "":
+        return "data:\n\n"
+    lines = message.splitlines() or [""]
+    payload = "".join(f"data: {line}\n" for line in lines)
+    return f"{payload}\n"
+
+
+async def _stream_openrouter(
+    client: httpx.AsyncClient,
+    settings,
+    prompt: str,
+    system: str,
+) -> AsyncGenerator[str, None]:
+    messages: list[dict[str, str]] = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+
+    headers: dict[str, str] = {
+        "Authorization": f"Bearer {settings.open_router_api_key}",
+        "Content-Type": "application/json",
+    }
+    if settings.open_router_site_url:
+        headers["HTTP-Referer"] = settings.open_router_site_url
+    if settings.open_router_app_name:
+        headers["X-Title"] = settings.open_router_app_name
+
+    async with client.stream(
+        "POST",
+        f"{settings.open_router_base_url.rstrip('/')}/chat/completions",
+        headers=headers,
+        json={
+            "model": settings.open_router_model,
+            "messages": messages,
+            "temperature": 0.2,
+            "stream": True,
+        },
+    ) as response:
+        response.raise_for_status()
+        async for line in response.aiter_lines():
+            if not line:
+                continue
+            if not line.startswith("data:"):
+                continue
+            data = line[5:].lstrip()
+            if data == "[DONE]":
+                break
+            try:
+                payload = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+            choices = payload.get("choices")
+            if not isinstance(choices, list) or not choices:
+                continue
+            choice = choices[0] if isinstance(choices[0], dict) else {}
+            delta = choice.get("delta") or {}
+            chunk = delta.get("content")
+            if isinstance(chunk, str) and chunk:
+                yield chunk
+
+
+async def _stream_ollama(
+    client: httpx.AsyncClient,
+    settings,
+    prompt: str,
+    system: str,
+) -> AsyncGenerator[str, None]:
+    async with client.stream(
+        "POST",
+        f"{settings.ollama_host.rstrip('/')}/api/generate",
+        json={
+            "model": settings.ollama_model,
+            "prompt": prompt,
+            "system": system,
+            "stream": True,
+        },
+    ) as response:
+        response.raise_for_status()
+        async for line in response.aiter_lines():
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            chunk = payload.get("response")
+            if isinstance(chunk, str) and chunk:
+                yield chunk
+            if payload.get("done"):
+                break
+
+
+@router.post("/stream")
+async def chat_stream(
+    payload: ChatRequest,
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    context, system, prompt, _focus_mode = _prepare_chat_prompt(payload, db)
+    settings = get_settings()
+    llm = get_llm_service(settings)
+
+    llm_available = await llm.is_available()
+    headers = {
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+        "X-LLM-Provider": getattr(llm, "provider", "unknown"),
+    }
+    if hasattr(llm, "model"):
+        headers["X-LLM-Model"] = llm.model
+    headers["X-LLM-Used"] = "true" if llm_available else "false"
+
+    async def event_stream() -> AsyncGenerator[str, None]:
+        if not llm_available:
+            fallback = (
+                "LLM is unavailable. Configure OPEN_ROUTER_API_KEY or start Ollama.\n"
+                + (f"\nContext:\n{context}\n" if context else "")
+            ).strip()
+            yield _sse_format(fallback)
+            yield _sse_format("[DONE]")
+            return
+
+        async with httpx.AsyncClient(timeout=None) as client:
+            try:
+                if isinstance(llm, OpenRouterService):
+                    async for chunk in _stream_openrouter(
+                        client, settings, prompt, system
+                    ):
+                        yield _sse_format(chunk)
+                elif isinstance(llm, OllamaService):
+                    async for chunk in _stream_ollama(client, settings, prompt, system):
+                        yield _sse_format(chunk)
+                else:
+                    text = await llm.generate(prompt, system=system)
+                    if text:
+                        yield _sse_format(text)
+                yield _sse_format("[DONE]")
+            except Exception as exc:
+                fallback = (
+                    f"LLM request failed: {type(exc).__name__}. "
+                    "Check your LLM provider settings and retry.\n"
+                    + (f"\nContext:\n{context}\n" if context else "")
+                ).strip()
+                yield _sse_format(fallback)
+                yield _sse_format("[DONE]")
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream", headers=headers)
+
+
+@router.post("", response_model=ChatResponse)
+async def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
+    context, system, prompt, _focus_mode = _prepare_chat_prompt(payload, db)
 
     settings = get_settings()
     llm = get_llm_service(settings)

@@ -85,6 +85,7 @@ def list_findings(
     scan_id: Optional[str] = Query(default=None),
     status_filter: Optional[str] = Query(default=None, alias="status"),
     include_false_positives: bool = Query(default=False),
+    limit: Optional[int] = Query(default=None, ge=1, le=100),
     db: Session = Depends(get_db),
 ) -> List[Finding]:
     q = db.query(Finding)
@@ -96,14 +97,14 @@ def list_findings(
     if not include_false_positives:
         q = q.filter(Finding.is_false_positive.is_(False))
     priority_rank = case((Finding.priority_score.is_(None), 0), else_=1)
-    return (
-        q.order_by(
-            desc(priority_rank),
-            desc(Finding.priority_score),
-            Finding.created_at.desc(),
-        )
-        .all()
+    q = q.order_by(
+        desc(priority_rank),
+        desc(Finding.priority_score),
+        Finding.created_at.desc(),
     )
+    if limit is not None:
+        q = q.limit(limit)
+    return q.all()
 
 
 @findings_router.get("/{finding_id}", response_model=FindingRead)

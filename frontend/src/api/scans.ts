@@ -38,4 +38,14 @@ export const scansApi = {
     );
     return data;
   },
+
+  listFindings: async (params?: {
+    scan_id?: string;
+    status?: string;
+    include_false_positives?: boolean;
+    limit?: number;
+  }) => {
+    const { data } = await api.get<Finding[]>("/api/findings", { params });
+    return data;
+  },
 };

@@ -651,7 +651,611 @@ if event_type == "pull_request":
 
 ---
 
-### Implementation Priority
+### Milestone 11: Dynamic Analysis (DAST) Integration
+**Goal**: Add optional dynamic scanning to complement static analysis
+
+#### Why Dynamic Analysis?
+
+| Analysis Type | What It Does | Limitations |
+|---------------|--------------|-------------|
+| **SAST (Semgrep)** | Reads code patterns | Can't confirm exploitability |
+| **DAST (Nuclei)** | Tests running apps | Needs live target |
+| **Combined** | Best of both | Maximum confidence |
+
+**Key Insight**: When SAST + DAST both find the same issue, confidence goes from 60% → 99%
+
+---
+
+#### New Database Fields
+
+| Task | File | Description |
+|------|------|-------------|
+| Update Scan model | `backend/src/models/scan.py` | Add scan_type, target_url fields |
+
+**Schema Changes**:
+```python
+class Scan(Base):
+    # Existing fields...
+
+    # NEW: Scan type selection
+    scan_type = Column(
+        Enum("sast", "dast", "both", name="scan_type"),
+        nullable=False,
+        default="sast",
+    )
+
+    # NEW: For DAST - live target URL
+    target_url = Column(String, nullable=True)  # e.g., https://app.example.com
+
+    # NEW: DAST-specific stats
+    dast_findings = Column(Integer, nullable=True, default=0)
+    endpoints_scanned = Column(Integer, nullable=True)
+    nuclei_templates_used = Column(Integer, nullable=True)
+```
+
+**Acceptance Criteria**:
+- [ ] Scan model supports scan_type: sast, dast, both
+- [ ] target_url stored for DAST scans
+- [ ] DAST stats tracked separately
+
+---
+
+#### New Files to Create
+
+| Task | File | Description |
+|------|------|-------------|
+| Create DAST runner | `backend/src/services/scanner/dast_runner.py` | Execute Nuclei, parse results |
+| Create dependency scanner | `backend/src/services/scanner/dependency_scanner.py` | Run Trivy for CVEs |
+| Update types | `backend/src/services/scanner/types.py` | Add DynamicFinding type |
+| Update scan pipeline | `backend/src/services/scanner/scan_pipeline.py` | Orchestrate SAST + DAST |
+
+---
+
+#### DAST Runner Implementation
+
+**File**: `backend/src/services/scanner/dast_runner.py`
+
+```python
+class DASTRunner:
+    """Run Nuclei dynamic security scans against live targets."""
+
+    def __init__(self, templates_dir: str = None):
+        self.templates = templates_dir or "nuclei-templates"
+        self.timeout = 300  # 5 minutes max
+
+    async def scan(self, target_url: str, template_categories: List[str] = None) -> List[DynamicFinding]:
+        """
+        Run Nuclei against a live target URL.
+
+        Args:
+            target_url: The live application URL (e.g., https://app.example.com)
+            template_categories: Which templates to use (cves, vulnerabilities, exposures, etc.)
+
+        Returns:
+            List of DynamicFinding objects
+        """
+        categories = template_categories or ["cves", "vulnerabilities", "exposures", "misconfigurations"]
+
+        cmd = [
+            "nuclei",
+            "-u", target_url,
+            "-jsonl",                    # JSON lines output
+            "-silent",                   # Less noise
+            "-timeout", "10",            # Per-request timeout
+            "-rate-limit", "100",        # Requests per second
+        ]
+
+        # Add template categories
+        for category in categories:
+            cmd.extend(["-t", f"{category}/"])
+
+        result = await asyncio.subprocess.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        stdout, _ = await asyncio.wait_for(
+            result.communicate(),
+            timeout=self.timeout
+        )
+
+        return self._parse_results(stdout.decode())
+
+    def _parse_results(self, output: str) -> List[DynamicFinding]:
+        findings = []
+        for line in output.strip().split("\n"):
+            if not line:
+                continue
+            try:
+                data = json.loads(line)
+                findings.append(DynamicFinding(
+                    template_id=data["template-id"],
+                    template_name=data["info"].get("name", ""),
+                    severity=data["info"]["severity"],
+                    matched_at=data["matched-at"],
+                    endpoint=data.get("host", ""),
+                    curl_command=data.get("curl-command", ""),
+                    evidence=data.get("extracted-results", []),
+                    description=data["info"].get("description", ""),
+                    remediation=data["info"].get("remediation", ""),
+                    cve_ids=data["info"].get("classification", {}).get("cve-id", []),
+                    cwe_ids=data["info"].get("classification", {}).get("cwe-id", []),
+                ))
+            except (json.JSONDecodeError, KeyError):
+                continue
+        return findings
+
+    def get_version(self) -> str:
+        """Get Nuclei version."""
+        result = subprocess.run(["nuclei", "-version"], capture_output=True, text=True)
+        return result.stdout.strip() or "unknown"
+
+    def is_available(self) -> bool:
+        """Check if Nuclei is installed."""
+        try:
+            subprocess.run(["nuclei", "-version"], capture_output=True, check=True)
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return False
+```
+
+**DynamicFinding Type**:
+```python
+@dataclass
+class DynamicFinding:
+    template_id: str           # e.g., "CVE-2021-44228"
+    template_name: str         # e.g., "Log4j RCE"
+    severity: str              # critical, high, medium, low, info
+    matched_at: str            # Full URL where issue was found
+    endpoint: str              # Target host
+    curl_command: str          # Reproducible curl command
+    evidence: List[str]        # Extracted data proving the issue
+    description: str           # What the vulnerability is
+    remediation: str           # How to fix it
+    cve_ids: List[str]         # Associated CVEs
+    cwe_ids: List[str]         # Associated CWEs
+```
+
+**Acceptance Criteria**:
+- [ ] DASTRunner executes Nuclei CLI
+- [ ] Parses JSON lines output correctly
+- [ ] Handles timeouts gracefully
+- [ ] Returns structured DynamicFinding objects
+- [ ] Includes curl command for reproduction
+
+---
+
+#### Dependency Scanner (Bonus)
+
+**File**: `backend/src/services/scanner/dependency_scanner.py`
+
+```python
+class DependencyScanner:
+    """Scan dependencies for known CVEs using Trivy."""
+
+    async def scan(self, repo_path: Path) -> List[DependencyFinding]:
+        """Scan package files for vulnerable dependencies."""
+        result = await asyncio.subprocess.create_subprocess_exec(
+            "trivy", "fs", str(repo_path),
+            "--format", "json",
+            "--scanners", "vuln",
+            "--severity", "CRITICAL,HIGH,MEDIUM",
+            stdout=asyncio.subprocess.PIPE,
+        )
+
+        stdout, _ = await result.communicate()
+        data = json.loads(stdout.decode())
+
+        findings = []
+        for result in data.get("Results", []):
+            for vuln in result.get("Vulnerabilities", []):
+                findings.append(DependencyFinding(
+                    cve_id=vuln["VulnerabilityID"],
+                    package_name=vuln["PkgName"],
+                    installed_version=vuln["InstalledVersion"],
+                    fixed_version=vuln.get("FixedVersion", "No fix available"),
+                    severity=vuln["Severity"],
+                    description=vuln.get("Description", ""),
+                    cvss_score=vuln.get("CVSS", {}).get("nvd", {}).get("V3Score"),
+                ))
+        return findings
+```
+
+**Acceptance Criteria**:
+- [ ] Scans requirements.txt, package.json, go.mod, etc.
+- [ ] Returns CVE IDs with fix versions
+- [ ] Includes CVSS scores for prioritization
+
+---
+
+#### Updated Scan Pipeline
+
+**File**: `backend/src/services/scanner/scan_pipeline.py`
+
+```python
+async def run_scan_pipeline(
+    scan_id: uuid.UUID,
+    repo_url: str,
+    branch: str,
+    scan_type: str = "sast",        # NEW: sast, dast, or both
+    target_url: str = None,          # NEW: for DAST
+) -> None:
+    db = SessionLocal()
+    repo_path = None
+
+    try:
+        # Initialize runners based on scan type
+        sast_findings = []
+        dast_findings = []
+        dependency_findings = []
+
+        # ===== SAST PHASE =====
+        if scan_type in ("sast", "both"):
+            _update_scan(db, scan_id, status="cloning")
+            await sio.emit("scan.updated", {"scan_id": str(scan_id), "status": "cloning"})
+
+            fetcher = RepoFetcher()
+            repo_path, resolved_branch = await fetcher.clone(repo_url, branch=branch)
+
+            _update_scan(db, scan_id, status="scanning")
+            await sio.emit("scan.updated", {"scan_id": str(scan_id), "status": "scanning", "phase": "SAST"})
+
+            # Run Semgrep
+            runner = SemgrepRunner()
+            raw_findings = await runner.scan(repo_path, fetcher.detect_languages(repo_path))
+
+            # Context extraction + AI triage
+            extractor = ContextExtractor()
+            triage = AITriageEngine()
+            contexts = [extractor.extract(repo_path, f) for f in raw_findings]
+            sast_findings = await triage.triage_batch(list(zip(raw_findings, contexts)))
+
+            # Dependency scan (bonus)
+            dep_scanner = DependencyScanner()
+            if dep_scanner.is_available():
+                dependency_findings = await dep_scanner.scan(repo_path)
+
+        # ===== DAST PHASE =====
+        if scan_type in ("dast", "both") and target_url:
+            _update_scan(db, scan_id, status="scanning")
+            await sio.emit("scan.updated", {"scan_id": str(scan_id), "status": "scanning", "phase": "DAST"})
+
+            dast_runner = DASTRunner()
+            if dast_runner.is_available():
+                dast_findings = await dast_runner.scan(target_url)
+                _update_scan(db, scan_id, dast_findings=len(dast_findings))
+
+        # ===== CORRELATION PHASE =====
+        _update_scan(db, scan_id, status="analyzing")
+        await sio.emit("scan.updated", {"scan_id": str(scan_id), "status": "analyzing", "phase": "Correlation"})
+
+        # Correlate SAST + DAST findings
+        correlated = await correlate_findings(sast_findings, dast_findings)
+
+        # AI triage with combined evidence
+        final_findings = await ai_triage_with_dast_evidence(correlated)
+
+        # Store findings...
+        # (existing storage logic)
+
+    except Exception as exc:
+        _update_scan(db, scan_id, status="failed", error_message=str(exc))
+    finally:
+        if repo_path:
+            await fetcher.cleanup(repo_path)
+        db.close()
+
+
+async def correlate_findings(
+    sast_findings: List[TriagedFinding],
+    dast_findings: List[DynamicFinding],
+) -> List[CorrelatedFinding]:
+    """
+    Correlate static and dynamic findings.
+
+    When SAST and DAST both find the same issue:
+    - Confidence increases significantly
+    - Severity confirmed by real exploitation
+    """
+    correlated = []
+
+    for sast in sast_findings:
+        matching_dast = None
+
+        # Try to match by vulnerability type
+        for dast in dast_findings:
+            if _findings_match(sast, dast):
+                matching_dast = dast
+                break
+
+        correlated.append(CorrelatedFinding(
+            sast_finding=sast,
+            dast_finding=matching_dast,
+            confidence_boost=0.3 if matching_dast else 0.0,
+            confirmed_exploitable=matching_dast is not None,
+            combined_evidence=_build_evidence(sast, matching_dast),
+        ))
+
+    # Add DAST-only findings (not found by SAST)
+    matched_dast_ids = {c.dast_finding.template_id for c in correlated if c.dast_finding}
+    for dast in dast_findings:
+        if dast.template_id not in matched_dast_ids:
+            correlated.append(CorrelatedFinding(
+                sast_finding=None,
+                dast_finding=dast,
+                confidence_boost=0.0,
+                confirmed_exploitable=True,  # DAST proves it
+                combined_evidence=dast.evidence,
+            ))
+
+    return correlated
+
+
+def _findings_match(sast: TriagedFinding, dast: DynamicFinding) -> bool:
+    """Check if SAST and DAST findings refer to same vulnerability."""
+    # Match by CWE
+    sast_cwe = _extract_cwe_from_rule(sast.rule_id)
+    if sast_cwe and sast_cwe in dast.cwe_ids:
+        return True
+
+    # Match by vulnerability type keywords
+    sqli_keywords = ["sql", "injection", "sqli"]
+    xss_keywords = ["xss", "cross-site", "scripting"]
+    rce_keywords = ["rce", "command", "exec", "eval"]
+
+    sast_text = f"{sast.rule_id} {sast.rule_message}".lower()
+    dast_text = f"{dast.template_id} {dast.description}".lower()
+
+    for keywords in [sqli_keywords, xss_keywords, rce_keywords]:
+        if any(k in sast_text for k in keywords) and any(k in dast_text for k in keywords):
+            return True
+
+    return False
+```
+
+**Acceptance Criteria**:
+- [ ] Pipeline supports scan_type: sast, dast, both
+- [ ] DAST runs against target_url when provided
+- [ ] Findings are correlated between SAST and DAST
+- [ ] Confidence boosted when both find same issue
+- [ ] Socket.IO emits phase updates (SAST → DAST → Correlation)
+
+---
+
+#### API Updates
+
+**File**: `backend/src/api/routes/scans.py`
+
+```python
+@router.post("", response_model=ScanRead, status_code=status.HTTP_201_CREATED)
+async def create_scan(
+    payload: ScanCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> Scan:
+    # Validate: DAST requires target_url
+    if payload.scan_type in ("dast", "both") and not payload.target_url:
+        raise HTTPException(
+            status_code=400,
+            detail="target_url is required for DAST scans"
+        )
+
+    # Validate: SAST requires repo_url
+    if payload.scan_type in ("sast", "both") and not payload.repo_url:
+        raise HTTPException(
+            status_code=400,
+            detail="repo_url is required for SAST scans"
+        )
+
+    scan = Scan(
+        repo_url=payload.repo_url,
+        branch=payload.branch or "main",
+        scan_type=payload.scan_type,      # NEW
+        target_url=payload.target_url,    # NEW
+        status="pending",
+        trigger="manual",
+    )
+    db.add(scan)
+    db.commit()
+    db.refresh(scan)
+
+    background_tasks.add_task(
+        run_scan_pipeline,
+        scan.id,
+        scan.repo_url,
+        scan.branch,
+        scan.scan_type,      # NEW
+        scan.target_url,     # NEW
+    )
+
+    return scan
+```
+
+**Updated ScanCreate Schema**:
+```python
+class ScanCreate(BaseModel):
+    repo_url: Optional[str] = None           # Required for SAST
+    branch: Optional[str] = "main"
+    scan_type: Literal["sast", "dast", "both"] = "sast"  # NEW
+    target_url: Optional[str] = None         # Required for DAST
+```
+
+**Acceptance Criteria**:
+- [ ] API accepts scan_type parameter
+- [ ] API accepts target_url for DAST
+- [ ] Validation: DAST requires target_url
+- [ ] Validation: SAST requires repo_url
+- [ ] Both can be provided for combined scan
+
+---
+
+#### Frontend Updates
+
+**File**: `frontend/src/pages/Scans.tsx`
+
+**New Form Fields**:
+```tsx
+export default function Scans() {
+  const [scanType, setScanType] = useState<"sast" | "dast" | "both">("sast");
+  const [repoUrl, setRepoUrl] = useState("");
+  const [targetUrl, setTargetUrl] = useState("");
+  const [branch, setBranch] = useState("main");
+
+  return (
+    <div className="surface-solid p-6">
+      {/* Scan Type Selector */}
+      <div className="flex gap-2 mb-4">
+        <button
+          className={`btn ${scanType === "sast" ? "btn-primary" : "btn-ghost"}`}
+          onClick={() => setScanType("sast")}
+        >
+          SAST (Code)
+        </button>
+        <button
+          className={`btn ${scanType === "dast" ? "btn-primary" : "btn-ghost"}`}
+          onClick={() => setScanType("dast")}
+        >
+          DAST (Live App)
+        </button>
+        <button
+          className={`btn ${scanType === "both" ? "btn-primary" : "btn-ghost"}`}
+          onClick={() => setScanType("both")}
+        >
+          Both
+        </button>
+      </div>
+
+      {/* SAST: Repository URL */}
+      {scanType !== "dast" && (
+        <div>
+          <label>Repository URL</label>
+          <input
+            placeholder="https://github.com/org/repo"
+            value={repoUrl}
+            onChange={(e) => setRepoUrl(e.target.value)}
+          />
+        </div>
+      )}
+
+      {/* DAST: Target URL */}
+      {scanType !== "sast" && (
+        <div>
+          <label>Live Target URL</label>
+          <input
+            placeholder="https://app.example.com"
+            value={targetUrl}
+            onChange={(e) => setTargetUrl(e.target.value)}
+          />
+        </div>
+      )}
+
+      <button onClick={triggerScan}>
+        {scanType === "both" ? "Run SAST + DAST" : `Run ${scanType.toUpperCase()}`}
+      </button>
+    </div>
+  );
+}
+```
+
+**ScanDetail Updates**:
+```tsx
+// Show which scan types were run
+<div className="flex gap-2">
+  {scan.scan_type === "sast" || scan.scan_type === "both" ? (
+    <span className="badge">SAST</span>
+  ) : null}
+  {scan.scan_type === "dast" || scan.scan_type === "both" ? (
+    <span className="badge">DAST</span>
+  ) : null}
+</div>
+
+// Show DAST-specific stats
+{scan.dast_findings != null && (
+  <div className="stat">
+    <div className="label">DAST Findings</div>
+    <div className="value">{scan.dast_findings}</div>
+  </div>
+)}
+
+// Show correlation badge on findings
+{finding.confirmed_exploitable && (
+  <span className="badge badge-critical">
+    Confirmed Exploitable (SAST + DAST)
+  </span>
+)}
+```
+
+**Acceptance Criteria**:
+- [ ] UI has SAST / DAST / Both toggle
+- [ ] Repo URL field shown for SAST
+- [ ] Target URL field shown for DAST
+- [ ] Both fields shown when "Both" selected
+- [ ] Findings show "Confirmed Exploitable" badge when SAST + DAST match
+
+---
+
+#### Docker Setup for Nuclei
+
+**File**: `docker-compose.yml` (update)
+
+```yaml
+services:
+  backend:
+    build: ./backend
+    environment:
+      - NUCLEI_TEMPLATES_PATH=/nuclei-templates
+    volumes:
+      - nuclei-templates:/nuclei-templates
+    depends_on:
+      - nuclei-updater
+
+  nuclei-updater:
+    image: projectdiscovery/nuclei:latest
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        nuclei -update-templates
+        cp -r /root/nuclei-templates /shared/
+    volumes:
+      - nuclei-templates:/shared
+
+volumes:
+  nuclei-templates:
+```
+
+**Acceptance Criteria**:
+- [ ] Nuclei available in backend container
+- [ ] Templates auto-updated on startup
+- [ ] Templates shared via volume
+
+---
+
+#### Demo Script for DAST
+
+**Hackathon Demo Addition**:
+
+> "We've shown how AI filters false positives in static analysis. But what if we could PROVE the vulnerability exists?"
+
+1. **SAST finds SQL injection pattern**
+   - "Semgrep found string interpolation in SQL query"
+   - AI says: "Likely vulnerable, confidence 70%"
+
+2. **Trigger DAST scan**
+   - "Now let's scan the live app..."
+   - Nuclei sends actual SQL injection payloads
+
+3. **DAST confirms**
+   - "Nuclei confirmed! Payload `1' OR '1'='1` returned 500 rows"
+   - Evidence: curl command to reproduce
+
+4. **Correlation**
+   - "SAST + DAST agree → Confidence: 99%"
+   - Badge: "Confirmed Exploitable"
+
+---
+
+### Implementation Priority (Updated)
 
 ```
 CRITICAL PATH (Must Have)
@@ -662,11 +1266,20 @@ CRITICAL PATH (Must Have)
 ├── M7: Scan API ─────────────────────────► Backend complete
 └── M8: Frontend ─────────────────────────► Demo-ready
 
-NICE TO HAVE
+NICE TO HAVE (Phase 2)
 ├── M4: Context Extractor ────────────────► Better AI results
 ├── M6: Finding Aggregator ───────────────► Cleaner output
 ├── M9: Webhook Enhancement ──────────────► CI/CD integration
-└── M10: Polish ──────────────────────────► Wow factor
+├── M10: Polish ──────────────────────────► Wow factor
+└── M11: Dynamic Analysis ────────────────► DAST + Correlation (NEW)
+
+DAST IMPLEMENTATION ORDER
+├── 11a: DASTRunner (Nuclei) ─────────────► Core DAST capability
+├── 11b: DependencyScanner (Trivy) ───────► Bonus: CVE detection
+├── 11c: Correlation Engine ──────────────► SAST + DAST matching
+├── 11d: API + Schema Updates ────────────► scan_type, target_url
+├── 11e: Frontend Toggle ─────────────────► User selects SAST/DAST/Both
+└── 11f: Docker + Nuclei Setup ───────────► Production ready
 ```
 
 ---
@@ -678,20 +1291,25 @@ unifonic/
 ├── backend/
 │   ├── src/
 │   │   ├── api/routes/
-│   │   │   ├── scans.py          # Scan endpoints
+│   │   │   ├── scans.py          # Scan endpoints (SAST + DAST)
 │   │   │   ├── bugs.py           # Bug triage (existing)
 │   │   │   └── webhooks.py       # GitHub integration
 │   │   ├── models/
-│   │   │   ├── scan.py           # Scan model
-│   │   │   ├── finding.py        # Finding model
+│   │   │   ├── scan.py           # Scan model (scan_type, target_url)
+│   │   │   ├── finding.py        # Finding model (SAST + DAST fields)
 │   │   │   └── bug.py            # Bug model (existing)
 │   │   ├── services/
 │   │   │   ├── scanner/
-│   │   │   │   ├── semgrep_runner.py
-│   │   │   │   ├── repo_fetcher.py
-│   │   │   │   ├── context_extractor.py
-│   │   │   │   ├── ai_triage.py
-│   │   │   │   └── finding_aggregator.py
+│   │   │   │   ├── semgrep_runner.py      # SAST: Semgrep execution
+│   │   │   │   ├── dast_runner.py         # DAST: Nuclei execution (NEW)
+│   │   │   │   ├── dependency_scanner.py  # Trivy CVE scanning (NEW)
+│   │   │   │   ├── repo_fetcher.py        # Clone repos
+│   │   │   │   ├── context_extractor.py   # Code context
+│   │   │   │   ├── ai_triage.py           # LLM false positive detection
+│   │   │   │   ├── finding_aggregator.py  # Group/dedupe/prioritize
+│   │   │   │   ├── correlation.py         # SAST + DAST matching (NEW)
+│   │   │   │   ├── scan_pipeline.py       # Orchestrates full scan
+│   │   │   │   └── types.py               # RawFinding, DynamicFinding, etc.
 │   │   │   ├── bug_triage/       # Existing
 │   │   │   └── intelligence/     # LLM services
 │   │   └── integrations/
@@ -701,10 +1319,11 @@ unifonic/
 ├── frontend/
 │   └── src/
 │       ├── pages/
-│       │   ├── Scans.tsx
-│       │   ├── ScanDetail.tsx
+│       │   ├── Scans.tsx         # SAST/DAST/Both toggle
+│       │   ├── ScanDetail.tsx    # Correlation badges
 │       │   └── Bugs.tsx          # Existing
 │       └── components/
+│           └── FindingCard.tsx   # "Confirmed Exploitable" badge
 └── docs/
 ```
 

@@ -22,7 +22,7 @@ export type CorrelationMatch = {
 };
 
 export const bugsApi = {
-  getAll: async (params?: { status?: string }) => {
+  getAll: async (params?: { status?: string; sort?: string; limit?: number }) => {
     const { data } = await api.get<BugReport[]>("/api/bugs", { params });
     return data;
   },

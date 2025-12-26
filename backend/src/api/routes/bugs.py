@@ -131,6 +131,7 @@ def create_bug(
 def list_bugs(
     status_filter: Optional[str] = Query(default=None, alias="status"),
     sort: str = Query(default="priority", alias="sort"),
+    limit: Optional[int] = Query(default=None, ge=1, le=100),
     db: Session = Depends(get_db),
 ) -> List[BugReport]:
     q = db.query(BugReport)
@@ -138,7 +139,10 @@ def list_bugs(
         q = q.filter(BugReport.status == status_filter)
 
     if sort == "created_at":
-        return q.order_by(BugReport.created_at.desc()).all()
+        q = q.order_by(BugReport.created_at.desc())
+        if limit is not None:
+            q = q.limit(limit)
+        return q.all()
 
     severity_rank = case(
         (BugReport.classified_severity == "critical", 4),
@@ -149,14 +153,14 @@ def list_bugs(
     )
     status_rank = case((BugReport.status == "resolved", 0), else_=1)
 
-    return (
-        q.order_by(
-            desc(status_rank),
-            desc(severity_rank),
-            BugReport.created_at.desc(),
-        )
-        .all()
+    q = q.order_by(
+        desc(status_rank),
+        desc(severity_rank),
+        BugReport.created_at.desc(),
     )
+    if limit is not None:
+        q = q.limit(limit)
+    return q.all()
 
 
 @router.get("/{bug_id}", response_model=BugReportRead)
