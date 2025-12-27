@@ -307,6 +307,8 @@ function NewScanForm({
   setRepoUrl,
   branch,
   setBranch,
+  dependencyHealthEnabled,
+  setDependencyHealthEnabled,
   targetUrl,
   setTargetUrl,
   dastConsent,
@@ -325,6 +327,8 @@ function NewScanForm({
   setRepoUrl: (url: string) => void;
   branch: string;
   setBranch: (branch: string) => void;
+  dependencyHealthEnabled: boolean;
+  setDependencyHealthEnabled: (enabled: boolean) => void;
   targetUrl: string;
   setTargetUrl: (url: string) => void;
   dastConsent: boolean;
@@ -516,6 +520,25 @@ function NewScanForm({
           </div>
         )}
 
+        {scanType !== "dast" && (
+          <div className="rounded-card border border-sky-400/20 bg-sky-400/5 p-4">
+            <label className="block text-xs font-semibold uppercase tracking-widest text-sky-300 mb-2">
+              Dependency Health
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                className="checkbox mt-0.5"
+                checked={dependencyHealthEnabled}
+                onChange={(e) => setDependencyHealthEnabled(e.target.checked)}
+              />
+              <span className="text-sm text-white/70 group-hover:text-white/90 transition-colors">
+                Detect deprecated or outdated npm and Python dependencies
+              </span>
+            </label>
+          </div>
+        )}
+
         {/* Error Message */}
         {errorMessage && (
           <div className="flex items-center gap-2 rounded-card border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
@@ -566,6 +589,7 @@ export default function Scans() {
   const [scanType, setScanType] = useState<ScanType>("sast");
   const [repoUrl, setRepoUrl] = useState("");
   const [branch, setBranch] = useState("main");
+  const [dependencyHealthEnabled, setDependencyHealthEnabled] = useState(true);
   const [selectedRepoId, setSelectedRepoId] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
   const [dastConsent, setDastConsent] = useState(false);
@@ -616,6 +640,7 @@ export default function Scans() {
         repo_url: scanType !== "dast" ? trimmedRepo : undefined,
         branch: scanType !== "dast" ? trimmedBranch : undefined,
         scan_type: scanType,
+        dependency_health_enabled: scanType !== "dast" ? dependencyHealthEnabled : undefined,
         target_url: scanType !== "sast" ? trimmedTarget : undefined,
         dast_consent: scanType !== "sast" ? dastConsent : undefined,
       });
@@ -644,6 +669,7 @@ export default function Scans() {
       return scansApi.create({
         repo_id: selectedRepoId,
         scan_type: scanType,
+        dependency_health_enabled: scanType !== "dast" ? dependencyHealthEnabled : undefined,
         target_url: scanType !== "sast" ? trimmedTarget : undefined,
         dast_consent: scanType !== "sast" ? dastConsent : undefined,
       });
@@ -772,6 +798,8 @@ export default function Scans() {
           setRepoUrl={setRepoUrl}
           branch={branch}
           setBranch={setBranch}
+          dependencyHealthEnabled={dependencyHealthEnabled}
+          setDependencyHealthEnabled={setDependencyHealthEnabled}
           targetUrl={targetUrl}
           setTargetUrl={setTargetUrl}
           dastConsent={dastConsent}

@@ -14,6 +14,7 @@ from .correlation import correlate_findings
 from .context_extractor import ContextExtractor
 from .finding_aggregator import FindingAggregator
 from .dast_runner import DASTRunner
+from .dependency_health_scanner import DependencyHealthScanner
 from .dependency_scanner import DependencyScanner
 from .repo_fetcher import RepoFetcher
 from .semgrep_runner import SemgrepRunner
@@ -36,6 +37,7 @@ async def run_scan_pipeline(
     aggregator = FindingAggregator(pinecone)
     dast_runner = DASTRunner()
     dependency_scanner = DependencyScanner()
+    dependency_health_scanner = DependencyHealthScanner()
 
     try:
         scan = db.query(Scan).filter(Scan.id == scan_id).first()
@@ -55,7 +57,12 @@ async def run_scan_pipeline(
         triaged = []
         dast_findings = []
         dependency_findings = []
+        dependency_health_findings = []
         dast_error: str | None = None
+        dependency_health_error: str | None = None
+        dependency_health_enabled = True
+        if scan is not None and scan.dependency_health_enabled is not None:
+            dependency_health_enabled = scan.dependency_health_enabled
 
         if scan_type in {"sast", "both"}:
             if not repo_url:
@@ -117,6 +124,15 @@ async def run_scan_pipeline(
 
             if dependency_scanner.is_available():
                 dependency_findings = await dependency_scanner.scan(repo_path)
+            if dependency_health_enabled:
+                try:
+                    dependency_health_findings = await dependency_health_scanner.scan(
+                        repo_path
+                    )
+                except Exception as exc:
+                    dependency_health_error = (
+                        f"Dependency health error: {exc}"
+                    )
 
         if scan_type in {"dast", "both"} and target_url:
             _update_scan(db, scan_id, status="scanning")
@@ -153,6 +169,13 @@ async def run_scan_pipeline(
                     )
                     return
                 _update_scan(db, scan_id, error_message=error_message)
+
+        if dependency_health_error:
+            error_message = _merge_error_message(
+                scan.error_message if scan else None,
+                dependency_health_error,
+            )
+            _update_scan(db, scan_id, error_message=error_message)
 
         _update_scan(db, scan_id, status="analyzing")
         await sio.emit(
@@ -297,14 +320,74 @@ async def run_scan_pipeline(
                 )
             )
 
+        for item in dependency_health_findings:
+            ai_severity = _normalize_ai_severity(item.ai_severity)
+            semgrep_severity = _semgrep_from_ai(ai_severity)
+            priority_score = _priority_from_dependency_health(item)
+            rule_label = item.installed_version or item.requirement
+            rule_message = (
+                f"{item.status.capitalize()} dependency: {item.package_name}"
+            )
+            if rule_label:
+                rule_message = f"{rule_message} ({rule_label})"
+            code_snippet = (
+                f"{item.package_name} {rule_label}".strip()
+                if rule_label
+                else item.package_name
+            )
+            exploitability = (
+                "Deprecated dependency with operational or security risk."
+                if item.status == "deprecated"
+                else "Outdated dependency may miss fixes and support."
+            )
+            db.add(
+                Finding(
+                    scan_id=scan_id,
+                    rule_id=f"dependency.{item.status}",
+                    rule_message=rule_message,
+                    semgrep_severity=semgrep_severity,
+                    finding_type="sast",
+                    ai_severity=ai_severity,
+                    is_false_positive=False,
+                    ai_reasoning=item.ai_reasoning,
+                    ai_confidence=item.ai_confidence,
+                    exploitability=exploitability,
+                    file_path=item.file_path,
+                    line_start=0,
+                    line_end=0,
+                    code_snippet=code_snippet,
+                    context_snippet=code_snippet,
+                    function_name=None,
+                    class_name=None,
+                    is_test_file=False,
+                    is_generated=False,
+                    imports=None,
+                    description=item.description,
+                    remediation=item.remediation,
+                    cve_ids=None,
+                    cwe_ids=None,
+                    confirmed_exploitable=False,
+                    status="new",
+                    priority_score=priority_score,
+                )
+            )
+
         db.commit()
 
-        total_findings = len(triaged) + len(unmatched_dast) + len(dependency_findings)
+        total_findings = (
+            len(triaged)
+            + len(unmatched_dast)
+            + len(dependency_findings)
+            + len(dependency_health_findings)
+        )
         filtered_sast = sum(
             1 for finding in triaged if not finding.is_false_positive
         )
         filtered_findings = (
-            filtered_sast + len(unmatched_dast) + len(dependency_findings)
+            filtered_sast
+            + len(unmatched_dast)
+            + len(dependency_findings)
+            + len(dependency_health_findings)
         )
 
         _update_scan(
@@ -434,6 +517,34 @@ def _priority_from_dependency(value: str, cvss_score: Optional[float]) -> int:
             return 55
         return 35
     return _priority_from_dast(value)
+
+
+def _semgrep_from_ai(ai_severity: str | None) -> str:
+    normalized = (ai_severity or "").lower()
+    if normalized in {"critical", "high"}:
+        return "ERROR"
+    if normalized == "medium":
+        return "WARNING"
+    return "INFO"
+
+
+def _priority_from_dependency_health(item) -> int:
+    severity_weights = {
+        "critical": 90,
+        "high": 75,
+        "medium": 55,
+        "low": 35,
+        "info": 10,
+    }
+    base = severity_weights.get(getattr(item, "ai_severity", "low"), 30)
+    confidence = getattr(item, "ai_confidence", 0.5) or 0.5
+    score = base * (0.5 + 0.5 * max(0.0, min(confidence, 1.0)))
+    dependency_type = (getattr(item, "dependency_type", "") or "").lower()
+    if dependency_type in {"dev", "optional", "peer"}:
+        score -= 10
+    if getattr(item, "status", "") == "deprecated" and getattr(item, "is_yanked", False):
+        score += 10
+    return max(0, min(100, int(round(score))))
 
 
 def _merge_error_message(current: Optional[str], new_message: str) -> str:

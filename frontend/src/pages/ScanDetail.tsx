@@ -300,6 +300,10 @@ export default function ScanDetail() {
               {scan.scan_type !== "dast" ? (
                 <span className="badge">branch {scan.branch}</span>
               ) : null}
+              {scan.scan_type !== "dast" &&
+              scan.dependency_health_enabled === false ? (
+                <span className="badge">dependency health off</span>
+              ) : null}
               <span className="badge">{formatReduction(scan)}</span>
               {scan.pr_number ? (
                 <span className="badge">PR #{scan.pr_number}</span>

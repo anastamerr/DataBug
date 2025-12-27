@@ -27,6 +27,7 @@ export interface Scan {
   repo_url?: string | null;
   branch: string;
   scan_type: "sast" | "dast" | "both";
+  dependency_health_enabled?: boolean;
   target_url?: string | null;
   status: "pending" | "cloning" | "scanning" | "analyzing" | "completed" | "failed";
   trigger: "manual" | "webhook";
@@ -93,6 +94,11 @@ export interface Finding {
   cve_ids?: string[] | null;
   cwe_ids?: string[] | null;
   confirmed_exploitable?: boolean;
+  is_reachable?: boolean;
+  reachability_score?: number | null;
+  reachability_reason?: string | null;
+  entry_points?: string[] | null;
+  call_path?: string[] | null;
   status: "new" | "confirmed" | "dismissed";
   priority_score?: number | null;
   created_at: string;

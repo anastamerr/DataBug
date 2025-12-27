@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     dast_allowed_hosts: Optional[str] = None
     scan_max_active: Optional[int] = None
     scan_min_interval_seconds: Optional[int] = None
+    dependency_health_use_llm: bool = True
 
     if SettingsConfigDict is not None:
         _ENV_FILE = Path(__file__).resolve().parents[1] / ".env"

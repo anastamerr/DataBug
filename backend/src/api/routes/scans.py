@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -69,7 +69,7 @@ async def create_scan(
             )
 
     if settings.scan_min_interval_seconds:
-        cutoff = datetime.utcnow() - timedelta(
+        cutoff = datetime.now(timezone.utc) - timedelta(
             seconds=settings.scan_min_interval_seconds
         )
         recent = (
@@ -82,7 +82,7 @@ async def create_scan(
             .first()
         )
         if recent is not None:
-            elapsed = datetime.utcnow() - recent.created_at
+            elapsed = datetime.now(timezone.utc) - recent.created_at
             remaining = settings.scan_min_interval_seconds - int(
                 elapsed.total_seconds()
             )
@@ -98,6 +98,7 @@ async def create_scan(
         repo_url=repo_url,
         branch=branch,
         scan_type=payload.scan_type.value,
+        dependency_health_enabled=payload.dependency_health_enabled,
         target_url=payload.target_url,
         status="pending",
         trigger="manual",

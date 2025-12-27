@@ -7,6 +7,7 @@ export const scansApi = {
     repo_id?: string;
     branch?: string;
     scan_type?: "sast" | "dast" | "both";
+    dependency_health_enabled?: boolean;
     target_url?: string;
     dast_consent?: boolean;
   }) => {
