@@ -114,6 +114,7 @@ class ScanCreate(BaseModel):
     repo_id: Optional[uuid.UUID] = None
     branch: Optional[str] = "main"
     scan_type: ScanType = ScanType.sast
+    dependency_health_enabled: bool = True
     target_url: Optional[str] = None
     dast_consent: bool = False
 
@@ -128,12 +129,15 @@ class ScanCreate(BaseModel):
             if not self.dast_consent:
                 raise ValueError("dast_consent is required for DAST scans")
             self.target_url = _normalize_target_url(self.target_url)
+        if self.scan_type == ScanType.dast:
+            self.dependency_health_enabled = False
         return self
 
 
 class ScanUpdate(BaseModel):
     status: Optional[ScanStatus] = None
     scan_type: Optional[ScanType] = None
+    dependency_health_enabled: Optional[bool] = None
     target_url: Optional[str] = None
     trigger: Optional[ScanTrigger] = None
     total_findings: Optional[int] = None
@@ -158,6 +162,7 @@ class ScanRead(BaseModel):
     repo_url: Optional[str] = None
     branch: str
     scan_type: ScanType
+    dependency_health_enabled: bool
     target_url: Optional[str] = None
     status: ScanStatus
     trigger: ScanTrigger
@@ -175,3 +180,5 @@ class ScanRead(BaseModel):
     semgrep_version: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    report_url: Optional[str] = None
+    report_generated_at: Optional[datetime] = None

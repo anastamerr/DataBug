@@ -96,3 +96,22 @@ class DependencyFinding:
     description: str
     cvss_score: Optional[float]
     target: Optional[str] = None
+
+
+@dataclass
+class DependencyHealthFinding:
+    package_name: str
+    ecosystem: str
+    status: str
+    installed_version: Optional[str]
+    latest_version: Optional[str]
+    requirement: Optional[str]
+    dependency_type: str
+    file_path: str
+    deprecation_reason: Optional[str]
+    is_yanked: bool
+    ai_severity: str
+    ai_confidence: float
+    ai_reasoning: str
+    description: Optional[str] = None
+    remediation: Optional[str] = None

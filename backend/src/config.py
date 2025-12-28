@@ -39,6 +39,8 @@ class Settings(BaseSettings):
 
     supabase_jwt_secret: Optional[str] = None
     supabase_jwt_issuer: Optional[str] = None
+    supabase_url: Optional[str] = None
+    supabase_service_key: Optional[str] = None
     nuclei_templates_path: Optional[str] = None
     nuclei_timeout_seconds: int = 300
     nuclei_rate_limit: Optional[int] = None
@@ -50,6 +52,7 @@ class Settings(BaseSettings):
     dast_allowed_hosts: Optional[str] = None
     scan_max_active: Optional[int] = None
     scan_min_interval_seconds: Optional[int] = None
+    dependency_health_use_llm: bool = True
 
     if SettingsConfigDict is not None:
         _ENV_FILE = Path(__file__).resolve().parents[1] / ".env"

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from io import BytesIO
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import case, desc
 from sqlalchemy.orm import Session
 
@@ -14,7 +16,10 @@ from ...models import Finding, Repository, Scan
 from ...realtime import sio
 from ...schemas.finding import FindingRead, FindingUpdate
 from ...schemas.scan import ScanCreate, ScanRead
+from ...services.reports import build_scan_report_pdf
+from ...services.reports.report_insights import generate_report_insights_sync
 from ...services.scanner import run_scan_pipeline
+from ...services.storage import delete_pdf, download_pdf, get_pdf_url, upload_pdf
 
 router = APIRouter(prefix="/scans", tags=["scans"])
 findings_router = APIRouter(prefix="/findings", tags=["findings"])
@@ -69,7 +74,7 @@ async def create_scan(
             )
 
     if settings.scan_min_interval_seconds:
-        cutoff = datetime.utcnow() - timedelta(
+        cutoff = datetime.now(timezone.utc) - timedelta(
             seconds=settings.scan_min_interval_seconds
         )
         recent = (
@@ -82,7 +87,7 @@ async def create_scan(
             .first()
         )
         if recent is not None:
-            elapsed = datetime.utcnow() - recent.created_at
+            elapsed = datetime.now(timezone.utc) - recent.created_at
             remaining = settings.scan_min_interval_seconds - int(
                 elapsed.total_seconds()
             )
@@ -98,6 +103,7 @@ async def create_scan(
         repo_url=repo_url,
         branch=branch,
         scan_type=payload.scan_type.value,
+        dependency_health_enabled=payload.dependency_health_enabled,
         target_url=payload.target_url,
         status="pending",
         trigger="manual",
@@ -153,6 +159,134 @@ def get_scan(
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
     return scan
+
+
+@router.get("/{scan_id}/report")
+def get_scan_report(
+    scan_id: str,
+    regenerate: bool = Query(default=False),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    scan = get_scan(scan_id, current_user=current_user, db=db)
+
+    # Always use cached report if it already exists.
+    cached_url = scan.report_url
+    cached_bytes = download_pdf(str(scan.id))
+    if cached_bytes is not None:
+        if regenerate:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Report already generated; regeneration is disabled.",
+            )
+        if not cached_url:
+            cached_url = get_pdf_url(str(scan.id))
+            if cached_url:
+                scan.report_url = cached_url
+                if not scan.report_generated_at:
+                    scan.report_generated_at = datetime.now(timezone.utc)
+                db.add(scan)
+                db.commit()
+        filename = f"scan-report-{scan.id}.pdf"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return StreamingResponse(
+            BytesIO(cached_bytes),
+            media_type="application/pdf",
+            headers=headers,
+        )
+
+    if cached_url:
+        if regenerate:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Report already generated; regeneration is disabled.",
+            )
+        import httpx
+        response = httpx.get(cached_url, timeout=30.0)
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to fetch report from storage.",
+            )
+        filename = f"scan-report-{scan.id}.pdf"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return StreamingResponse(
+            BytesIO(response.content),
+            media_type="application/pdf",
+            headers=headers,
+        )
+
+    if scan.report_generated_at:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Report already generated; cached file is missing or storage is unavailable.",
+        )
+
+    # Generate new report
+    findings = (
+        db.query(Finding)
+        .filter(
+            Finding.scan_id == scan.id,
+            Finding.is_false_positive.is_(False),
+        )
+        .order_by(desc(Finding.priority_score), Finding.created_at.desc())
+        .all()
+    )
+    trend_scans = (
+        db.query(Scan)
+        .filter(Scan.user_id == current_user.id, Scan.status == "completed")
+        .order_by(Scan.created_at.desc())
+        .limit(12)
+        .all()
+    )
+    insights = generate_report_insights_sync(scan, findings, trend_scans)
+    pdf_bytes = build_scan_report_pdf(
+        scan,
+        findings,
+        trend_scans,
+        insights=insights,
+    )
+
+    # Upload to Supabase storage and cache URL
+    report_url = upload_pdf(str(scan.id), pdf_bytes, upsert=False)
+    if not report_url:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Failed to store report in Supabase.",
+        )
+    scan.report_url = report_url
+    scan.report_generated_at = datetime.now(timezone.utc)
+    db.add(scan)
+    db.commit()
+
+    filename = f"scan-report-{scan.id}.pdf"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers=headers,
+    )
+
+
+@router.delete(
+    "/{scan_id}/report",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    response_class=Response,
+)
+def delete_scan_report(
+    scan_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Delete cached PDF report to allow regeneration."""
+    scan = get_scan(scan_id, current_user=current_user, db=db)
+    if scan.report_url:
+        delete_pdf(str(scan.id))
+        scan.report_url = None
+        db.add(scan)
+        db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{scan_id}/findings", response_model=List[FindingRead])

@@ -18,3 +18,8 @@ python-socketio
 alembic
 semgrep
 pyjwt
+packaging
+tomli
+reportlab
+supabase
+httpx

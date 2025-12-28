@@ -3,6 +3,7 @@ import uuid
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     Column,
     DateTime,
     Enum,
@@ -29,6 +30,7 @@ class Scan(Base):
         nullable=False,
         default="sast",
     )
+    dependency_health_enabled = Column(Boolean, nullable=False, default=True)
     target_url = Column(String, nullable=True)
     status = Column(
         Enum(
@@ -67,3 +69,5 @@ class Scan(Base):
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
     )
+    report_url = Column(String, nullable=True)
+    report_generated_at = Column(DateTime, nullable=True)

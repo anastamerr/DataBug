@@ -2,6 +2,7 @@ from .ai_triage import AITriageEngine
 from .context_extractor import ContextExtractor
 from .correlation import correlate_findings
 from .dast_runner import DASTRunner
+from .dependency_health_scanner import DependencyHealthScanner
 from .dependency_scanner import DependencyScanner
 from .finding_aggregator import FindingAggregator
 from .repo_fetcher import RepoFetcher
@@ -10,6 +11,7 @@ from .semgrep_runner import SemgrepRunner
 from .types import (
     CodeContext,
     DependencyFinding,
+    DependencyHealthFinding,
     DynamicFinding,
     FindingGroup,
     RawFinding,
@@ -22,7 +24,9 @@ __all__ = [
     "ContextExtractor",
     "correlate_findings",
     "DASTRunner",
+    "DependencyHealthScanner",
     "DependencyFinding",
+    "DependencyHealthFinding",
     "DependencyScanner",
     "DynamicFinding",
     "FindingAggregator",

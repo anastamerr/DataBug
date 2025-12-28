@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 import json
 from typing import Any, Dict, Optional
@@ -253,6 +253,7 @@ def _create_scan(
         repo_url=repo_url,
         branch=branch,
         scan_type="sast",
+        dependency_health_enabled=True,
         target_url=None,
         status="pending",
         trigger=trigger,
@@ -271,7 +272,7 @@ def _create_scan(
 
 
 def _is_rate_limited(db: Session, repo_url: str, user_id: uuid.UUID) -> bool:
-    cutoff = datetime.utcnow() - timedelta(seconds=60)
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=60)
     recent = (
         db.query(Scan)
         .filter(

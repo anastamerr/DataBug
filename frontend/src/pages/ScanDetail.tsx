@@ -56,6 +56,8 @@ export default function ScanDetail() {
   const [includeFalsePositives, setIncludeFalsePositives] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
+  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   const {
     data: scan,
@@ -110,6 +112,29 @@ export default function ScanDetail() {
       await queryClient.invalidateQueries({ queryKey: ["findings"] });
     },
   });
+
+  const handleDownloadReport = async () => {
+    if (!scan) return;
+    setIsDownloadingReport(true);
+    setReportError(null);
+    try {
+      const blob = await scansApi.downloadReport(scan.id);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `scan-report-${scan.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setReportError(
+        err instanceof Error ? err.message : "Failed to generate PDF report."
+      );
+    } finally {
+      setIsDownloadingReport(false);
+    }
+  };
 
   const stats = useMemo(() => {
     const total = scan?.total_findings ?? 0;
@@ -300,6 +325,10 @@ export default function ScanDetail() {
               {scan.scan_type !== "dast" ? (
                 <span className="badge">branch {scan.branch}</span>
               ) : null}
+              {scan.scan_type !== "dast" &&
+              scan.dependency_health_enabled === false ? (
+                <span className="badge">dependency health off</span>
+              ) : null}
               <span className="badge">{formatReduction(scan)}</span>
               {scan.pr_number ? (
                 <span className="badge">PR #{scan.pr_number}</span>
@@ -336,6 +365,52 @@ export default function ScanDetail() {
             <Link to={`/chat?scan_id=${scan.id}`} className="btn-primary">
               Ask AI
             </Link>
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-pill border border-neon-mint/30 bg-neon-mint/10 px-4 py-2 text-sm font-semibold text-neon-mint transition-all duration-200 hover:border-neon-mint/50 hover:bg-neon-mint/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-neon-mint/30 disabled:hover:bg-neon-mint/10"
+              onClick={handleDownloadReport}
+              disabled={scan.status !== "completed" || isDownloadingReport}
+              title={scan.status !== "completed" ? "Report available after scan completes" : "Download PDF report"}
+            >
+              {isDownloadingReport ? (
+                <svg
+                  className="h-4 w-4 animate-spin"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  className="h-4 w-4"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+                  />
+                </svg>
+              )}
+              {isDownloadingReport ? "Generating..." : "PDF Report"}
+            </button>
             {scan.pr_url ? (
               <a
                 href={scan.pr_url}
@@ -482,6 +557,12 @@ export default function ScanDetail() {
           </label>
         </div>
       </div>
+
+      {reportError ? (
+        <div className="surface-solid p-4 text-sm text-rose-200">
+          {reportError}
+        </div>
+      ) : null}
 
       {updateError ? (
         <div className="surface-solid p-4 text-sm text-rose-200">

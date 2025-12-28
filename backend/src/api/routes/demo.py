@@ -473,6 +473,7 @@ async def inject_scan(
         repo_url=repo_url,
         branch=(payload.branch or "main").strip() or "main",
         scan_type=scan_type,
+        dependency_health_enabled=True,
         target_url=target_url,
         status="completed",
         trigger="manual",
