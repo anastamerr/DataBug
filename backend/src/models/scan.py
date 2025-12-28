@@ -69,3 +69,5 @@ class Scan(Base):
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
     )
+    report_url = Column(String, nullable=True)
+    report_generated_at = Column(DateTime, nullable=True)

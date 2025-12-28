@@ -39,6 +39,8 @@ class Settings(BaseSettings):
 
     supabase_jwt_secret: Optional[str] = None
     supabase_jwt_issuer: Optional[str] = None
+    supabase_url: Optional[str] = None
+    supabase_service_key: Optional[str] = None
     nuclei_templates_path: Optional[str] = None
     nuclei_timeout_seconds: int = 300
     nuclei_rate_limit: Optional[int] = None

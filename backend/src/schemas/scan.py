@@ -180,3 +180,5 @@ class ScanRead(BaseModel):
     semgrep_version: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    report_url: Optional[str] = None
+    report_generated_at: Optional[datetime] = None

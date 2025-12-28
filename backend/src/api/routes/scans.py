@@ -6,7 +6,7 @@ from io import BytesIO
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import case, desc
 from sqlalchemy.orm import Session
 
@@ -18,6 +18,7 @@ from ...schemas.finding import FindingRead, FindingUpdate
 from ...schemas.scan import ScanCreate, ScanRead
 from ...services.reports import build_scan_report_pdf
 from ...services.scanner import run_scan_pipeline
+from ...services.storage import upload_pdf, delete_pdf
 
 router = APIRouter(prefix="/scans", tags=["scans"])
 findings_router = APIRouter(prefix="/findings", tags=["findings"])
@@ -162,10 +163,29 @@ def get_scan(
 @router.get("/{scan_id}/report")
 def get_scan_report(
     scan_id: str,
+    regenerate: bool = Query(default=False),
     current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> StreamingResponse:
     scan = get_scan(scan_id, current_user=current_user, db=db)
+
+    # Use cached report URL if available and not regenerating
+    if scan.report_url and not regenerate:
+        import httpx
+        try:
+            response = httpx.get(scan.report_url, timeout=30.0)
+            if response.status_code == 200:
+                filename = f"scan-report-{scan.id}.pdf"
+                headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+                return StreamingResponse(
+                    BytesIO(response.content),
+                    media_type="application/pdf",
+                    headers=headers,
+                )
+        except Exception:
+            pass  # Fall through to regenerate if fetch fails
+
+    # Generate new report
     findings = (
         db.query(Finding)
         .filter(
@@ -183,6 +203,15 @@ def get_scan_report(
         .all()
     )
     pdf_bytes = build_scan_report_pdf(scan, findings, trend_scans)
+
+    # Upload to Supabase storage and cache URL
+    report_url = upload_pdf(str(scan.id), pdf_bytes)
+    if report_url:
+        scan.report_url = report_url
+        scan.report_generated_at = datetime.now(timezone.utc)
+        db.add(scan)
+        db.commit()
+
     filename = f"scan-report-{scan.id}.pdf"
     headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
     return StreamingResponse(
@@ -190,6 +219,28 @@ def get_scan_report(
         media_type="application/pdf",
         headers=headers,
     )
+
+
+@router.delete(
+    "/{scan_id}/report",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    response_class=Response,
+)
+def delete_scan_report(
+    scan_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Delete cached PDF report to allow regeneration."""
+    scan = get_scan(scan_id, current_user=current_user, db=db)
+    if scan.report_url:
+        delete_pdf(str(scan.id))
+        scan.report_url = None
+        scan.report_generated_at = None
+        db.add(scan)
+        db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{scan_id}/findings", response_model=List[FindingRead])
