@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 import uuid
 
 from sqlalchemy import (
@@ -83,12 +83,22 @@ class Finding(Base):
     )
     priority_score = Column(Integer, nullable=True)
 
-    created_at = Column(
-        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    fix_status = Column(
+        Enum("generated", "pr_opened", "failed", name="fix_status"),
+        nullable=True,
     )
+    fix_summary = Column(Text, nullable=True)
+    fix_patch = Column(Text, nullable=True)
+    fix_pr_url = Column(String, nullable=True)
+    fix_branch = Column(String, nullable=True)
+    fix_error = Column(Text, nullable=True)
+    fix_confidence = Column(Float, nullable=True)
+    fix_generated_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(
         DateTime,
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
     )
