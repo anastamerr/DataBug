@@ -6,17 +6,24 @@ const RAW_WS_URL =
   import.meta.env.VITE_API_URL ||
   "http://localhost:8000";
 const WS_URL = RAW_WS_URL.replace(/\/api\/?$/, "").replace(/\/ws\/?$/, "");
+const normalizePath = (value: string) => {
+  const trimmed = value.replace(/\/+$/, "");
+  const withLeading = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  return `${withLeading}/`;
+};
 
 export function useWebSocket(path: string = "/ws"): Socket {
+  const socketPath = normalizePath(path);
+
   const socket = useMemo(
     () =>
       io(WS_URL, {
-        path,
+        path: socketPath,
         transports: ["polling", "websocket"],
         reconnection: true,
         reconnectionDelayMax: 5000,
       }),
-    [path],
+    [socketPath],
   );
 
   useEffect(() => {
