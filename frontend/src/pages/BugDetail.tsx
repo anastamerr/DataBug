@@ -154,9 +154,7 @@ export default function BugDetail() {
               </h1>
               <p className="mt-1 text-sm text-white/60">Bug not found.</p>
             </div>
-            <Link to="/bugs" className="btn-ghost">
-              Back to Bugs
-            </Link>
+            <BackLink to="/bugs" label="Back to Bugs" className="btn-ghost" />
           </div>
         </div>
       </div>
@@ -197,9 +195,7 @@ export default function BugDetail() {
                 Open on GitHub
               </a>
             ) : null}
-            <Link to="/bugs" className="btn-ghost">
-              Back
-            </Link>
+            <BackLink to="/bugs" label="Back" className="btn-ghost" />
           </div>
         </div>
       </div>

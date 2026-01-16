@@ -339,9 +339,7 @@ export default function ScanDetail() {
                   Retry
                 </button>
               ) : null}
-              <Link to="/scans" className="btn-ghost">
-                Back to Scans
-              </Link>
+              <BackLink to="/scans" label="Back to Scans" className="btn-ghost" />
             </div>
           </div>
         </div>
@@ -473,9 +471,7 @@ export default function ScanDetail() {
                 View Commit
               </a>
             ) : null}
-            <Link to="/scans" className="btn-ghost">
-              Back
-            </Link>
+            <BackLink to="/scans" label="Back" className="btn-ghost" />
           </div>
         </div>
         {scan.error_message ? (
