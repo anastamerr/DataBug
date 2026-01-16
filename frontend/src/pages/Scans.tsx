@@ -76,15 +76,19 @@ function formatDate(value?: string): string {
   const dt = new Date(value);
   if (Number.isNaN(dt.getTime())) return "—";
 
-  const now = new Date();
-  const diffMs = now.getTime() - dt.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
+  const now = Date.now();
+  const diffMs = now - dt.getTime();
 
-  if (diffMins < 1) return "Just now";
+  if (diffMs < 45_000) return "Just now";
+  if (diffMs < 90_000) return "1m ago";
+
+  const diffMins = Math.floor(diffMs / 60_000);
   if (diffMins < 60) return `${diffMins}m ago`;
+
+  const diffHours = Math.floor(diffMs / 3_600_000);
   if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.floor(diffMs / 86_400_000);
   if (diffDays < 7) return `${diffDays}d ago`;
 
   return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
