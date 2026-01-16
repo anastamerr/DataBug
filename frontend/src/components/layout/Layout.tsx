@@ -44,7 +44,7 @@ export function Layout() {
       </div>
       <RealtimeListener />
       <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-4 lg:flex-row lg:gap-6 lg:p-6">
-        <aside className="surface w-full p-4 lg:w-80">
+        <aside className="surface w-full shrink-0 p-4 lg:w-80">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
