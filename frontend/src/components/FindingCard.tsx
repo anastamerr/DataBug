@@ -17,11 +17,11 @@ type FindingCardProps = {
 };
 
 const severityStyles: Record<string, string> = {
-  critical: "badge border-rose-400/40 bg-rose-400/10 text-rose-200",
-  high: "badge border-amber-400/40 bg-amber-400/10 text-amber-200",
-  medium: "badge border-white/20 bg-white/10 text-white/80",
-  low: "badge border-white/10 bg-white/5 text-white/70",
-  info: "badge border-sky-400/40 bg-sky-400/10 text-sky-200",
+  critical: "badge border-rose-500/60 bg-rose-500/15 text-rose-200",
+  high: "badge border-orange-400/50 bg-orange-400/15 text-orange-100",
+  medium: "badge border-amber-300/50 bg-amber-300/15 text-amber-100",
+  low: "badge border-emerald-300/50 bg-emerald-300/12 text-emerald-100",
+  info: "badge border-sky-400/50 bg-sky-400/12 text-sky-100",
 };
 
 const semgrepStyles: Record<string, string> = {

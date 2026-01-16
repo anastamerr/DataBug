@@ -1,16 +1,24 @@
 import { NavLink, Outlet } from "react-router-dom";
+import {
+  Bug,
+  FolderGit2,
+  LayoutDashboard,
+  MessagesSquare,
+  Radar,
+  Settings,
+} from "lucide-react";
 
 import { RealtimeListener } from "../realtime/RealtimeListener";
 import { RealtimeStatus } from "../realtime/RealtimeStatus";
 import { useAuth } from "../../hooks/useAuth";
 
 const navItems = [
-  { to: "/", label: "Dashboard", end: true },
-  { to: "/scans", label: "Scans" },
-  { to: "/repos", label: "Repositories" },
-  { to: "/bugs", label: "Bugs" },
-  { to: "/chat", label: "Chat" },
-  { to: "/settings", label: "Settings" },
+  { to: "/", label: "Dashboard", end: true, icon: <LayoutDashboard className="h-4 w-4" /> },
+  { to: "/scans", label: "Scans", icon: <Radar className="h-4 w-4" /> },
+  { to: "/repos", label: "Repositories", icon: <FolderGit2 className="h-4 w-4" /> },
+  { to: "/bugs", label: "Bugs", icon: <Bug className="h-4 w-4" /> },
+  { to: "/chat", label: "Chat", icon: <MessagesSquare className="h-4 w-4" /> },
+  { to: "/settings", label: "Settings", icon: <Settings className="h-4 w-4" /> },
 ];
 
 function linkClass(isActive: boolean) {
@@ -67,7 +75,10 @@ export function Layout() {
                 end={item.end}
                 className={({ isActive }) => linkClass(isActive)}
               >
-                <span className="truncate">{item.label}</span>
+                <span className="flex items-center gap-2 truncate">
+                  {item.icon}
+                  <span className="truncate">{item.label}</span>
+                </span>
                 <span className="h-1.5 w-1.5 rounded-pill bg-white/0 transition group-[.active]:bg-void/70" />
               </NavLink>
             ))}

@@ -43,6 +43,14 @@ function truncateLabel(value: string, max = 48) {
   return `${value.slice(0, max - 3)}...`;
 }
 
+function resizeTextarea(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "auto";
+  const maxHeight = 320;
+  const next = Math.min(el.scrollHeight, maxHeight);
+  el.style.height = `${next}px`;
+}
+
 const markdownComponents = {
   p: ({ children }: { children?: ReactNode }) => (
     <p className="text-sm leading-relaxed">{children}</p>
@@ -172,6 +180,10 @@ export default function Chat() {
     }
   }, [prefill, messages.length, input]);
 
+  useEffect(() => {
+    resizeTextarea(inputRef.current);
+  }, [input]);
+
   const { data: mentionFindings = [] } = useQuery({
     queryKey: ["mentions", "findings"],
     queryFn: () =>
@@ -264,6 +276,7 @@ export default function Chat() {
       label: `${item.type} ${truncateLabel(item.label, 36)}`,
     });
     closeMention();
+    resizeTextarea(inputRef.current);
 
     requestAnimationFrame(() => {
       if (textarea) {
