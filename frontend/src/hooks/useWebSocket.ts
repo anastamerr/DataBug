@@ -7,9 +7,8 @@ const RAW_WS_URL =
   "http://localhost:8000";
 const WS_URL = RAW_WS_URL.replace(/\/api\/?$/, "").replace(/\/ws\/?$/, "");
 const normalizePath = (value: string) => {
-  const trimmed = value.replace(/\/+$/, "");
-  const withLeading = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
-  return `${withLeading}/`;
+  const trimmed = value.replace(/^\/+|\/+$/g, "");
+  return `/${trimmed || "ws"}`;
 };
 
 export function useWebSocket(path: string = "/ws"): Socket {
