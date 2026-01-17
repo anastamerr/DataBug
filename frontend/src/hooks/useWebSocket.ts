@@ -5,7 +5,18 @@ const RAW_WS_URL =
   import.meta.env.VITE_WS_URL ||
   import.meta.env.VITE_API_URL ||
   "http://localhost:8000";
-const WS_URL = RAW_WS_URL.replace(/\/api\/?$/, "").replace(/\/ws\/?$/, "");
+const normalizeBaseUrl = (value: string) => {
+  let current = value.trim();
+  let next = current;
+
+  do {
+    current = next.replace(/\/+$/, "");
+    next = current.replace(/\/(api|ws)$/i, "");
+  } while (next !== current);
+
+  return current;
+};
+const WS_URL = normalizeBaseUrl(RAW_WS_URL);
 const normalizePath = (value: string) => {
   const trimmed = value.replace(/^\/+|\/+$/g, "");
   return `/${trimmed || "ws"}`;
